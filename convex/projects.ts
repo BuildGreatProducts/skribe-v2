@@ -1,34 +1,90 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 
-// Get all projects for a user
+/**
+ * Helper to get authenticated user from context.
+ * Returns the user record or null if not authenticated.
+ */
+async function getAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    return null;
+  }
+
+  // Look up user by Clerk ID
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .unique();
+
+  return user;
+}
+
+/**
+ * Helper to require authenticated user.
+ * Throws if not authenticated.
+ */
+async function requireAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
+  const user = await getAuthenticatedUser(ctx);
+  if (!user) {
+    throw new Error("Unauthorized: You must be logged in");
+  }
+  return user;
+}
+
+// Get all projects for the authenticated user
 export const getByUser = query({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return [];
+    }
+
     return await ctx.db
       .query("projects")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
       .order("desc")
       .collect();
   },
 });
 
-// Get a single project by ID
+// Get a single project by ID (with ownership check)
 export const getById = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.projectId);
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project) {
+      return null;
+    }
+
+    // Verify ownership
+    if (project.userId !== user._id) {
+      return null;
+    }
+
+    return project;
   },
 });
 
-// Get project count for a user (for subscription limits)
+// Get project count for the authenticated user (for subscription limits)
 export const getCountByUser = query({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return 0;
+    }
+
     const projects = await ctx.db
       .query("projects")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
     return projects.length;
   },
@@ -37,7 +93,6 @@ export const getCountByUser = query({
 // Create a new project
 export const create = mutation({
   args: {
-    userId: v.id("users"),
     name: v.string(),
     description: v.optional(v.string()),
     githubRepoId: v.optional(v.string()),
@@ -45,10 +100,11 @@ export const create = mutation({
     githubRepoUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
     const now = Date.now();
 
     const projectId = await ctx.db.insert("projects", {
-      userId: args.userId,
+      userId: user._id,
       name: args.name,
       description: args.description,
       githubRepoId: args.githubRepoId,
@@ -66,7 +122,6 @@ export const create = mutation({
 export const update = mutation({
   args: {
     projectId: v.id("projects"),
-    userId: v.id("users"), // Required for ownership verification
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     githubRepoId: v.optional(v.string()),
@@ -74,7 +129,8 @@ export const update = mutation({
     githubRepoUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { projectId, userId, ...updates } = args;
+    const user = await requireAuthenticatedUser(ctx);
+    const { projectId, ...updates } = args;
 
     // Verify project exists
     const project = await ctx.db.get(projectId);
@@ -83,7 +139,7 @@ export const update = mutation({
     }
 
     // Verify ownership
-    if (project.userId !== userId) {
+    if (project.userId !== user._id) {
       throw new Error("Unauthorized: You do not own this project");
     }
 
@@ -115,9 +171,10 @@ async function batchDelete(
 export const remove = mutation({
   args: {
     projectId: v.id("projects"),
-    userId: v.id("users"), // Required for ownership verification
   },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+
     // Verify project exists
     const project = await ctx.db.get(args.projectId);
     if (!project) {
@@ -125,7 +182,7 @@ export const remove = mutation({
     }
 
     // Verify ownership
-    if (project.userId !== args.userId) {
+    if (project.userId !== user._id) {
       throw new Error("Unauthorized: You do not own this project");
     }
 

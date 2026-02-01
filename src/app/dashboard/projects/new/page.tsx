@@ -49,16 +49,11 @@ export default function NewProjectPage() {
       return;
     }
 
-    if (!storedUser?._id) {
-      setError("User not found. Please refresh the page.");
-      return;
-    }
-
     setIsCreating(true);
 
     try {
+      // Server-side auth handles user verification
       const projectId = await createProject({
-        userId: storedUser._id,
         name: name.trim(),
         description: description.trim() || undefined,
         githubRepoId: selectedRepo?.id,

@@ -10,8 +10,8 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -25,21 +25,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the chat to determine type and system prompt
+    // Resolve the Convex user from Clerk ID
+    const user = await convex.query(api.users.getByClerkId, {
+      clerkId: clerkUserId,
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 403 }
+      );
+    }
+
+    // Verify project ownership
+    const project = await convex.query(api.projects.getById, {
+      projectId: projectId as Id<"projects">,
+    });
+
+    if (!project) {
+      return NextResponse.json(
+        { error: "Forbidden: Project not found or you do not have access" },
+        { status: 403 }
+      );
+    }
+
+    // Verify chat belongs to project and user has access
     const chat = await convex.query(api.chats.getById, {
       chatId: chatId as Id<"chats">,
     });
 
     if (!chat) {
-      return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Forbidden: Chat not found or you do not have access" },
+        { status: 403 }
+      );
     }
 
-    // Get project documents for context
+    // Verify chat belongs to the specified project
+    if (chat.projectId !== projectId) {
+      return NextResponse.json(
+        { error: "Forbidden: Chat does not belong to this project" },
+        { status: 403 }
+      );
+    }
+
+    // Get project documents for context (already ownership-checked)
     const documents = await convex.query(api.documents.getContextForProject, {
       projectId: projectId as Id<"projects">,
     });
 
-    // Get chat history
+    // Get chat history (already ownership-checked)
     const messages = await convex.query(api.messages.getByChat, {
       chatId: chatId as Id<"chats">,
     });

@@ -1,5 +1,6 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 
 // Document types that match the schema
 const documentTypes = v.union(
@@ -20,10 +21,67 @@ const syncStatuses = v.union(
   v.literal("error")
 );
 
-// Get all documents for a project
+/**
+ * Helper to get authenticated user from context.
+ */
+async function getAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    return null;
+  }
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .unique();
+
+  return user;
+}
+
+/**
+ * Helper to require authenticated user.
+ */
+async function requireAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
+  const user = await getAuthenticatedUser(ctx);
+  if (!user) {
+    throw new Error("Unauthorized: You must be logged in");
+  }
+  return user;
+}
+
+/**
+ * Helper to verify project ownership.
+ */
+async function verifyProjectOwnership(
+  ctx: QueryCtx | MutationCtx,
+  projectId: Id<"projects">,
+  userId: Id<"users">
+) {
+  const project = await ctx.db.get(projectId);
+  if (!project) {
+    throw new Error("Project not found");
+  }
+  if (project.userId !== userId) {
+    throw new Error("Unauthorized: You do not own this project");
+  }
+  return project;
+}
+
+// Get all documents for a project (with ownership check)
 export const getByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return [];
+    }
+
+    // Verify project ownership
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) {
+      return [];
+    }
+
     return await ctx.db
       .query("documents")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
@@ -32,21 +90,48 @@ export const getByProject = query({
   },
 });
 
-// Get a single document by ID
+// Get a single document by ID (with ownership check)
 export const getById = query({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.documentId);
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    const doc = await ctx.db.get(args.documentId);
+    if (!doc) {
+      return null;
+    }
+
+    // Verify ownership through project
+    const project = await ctx.db.get(doc.projectId);
+    if (!project || project.userId !== user._id) {
+      return null;
+    }
+
+    return doc;
   },
 });
 
-// Get documents by type for a project
+// Get documents by type for a project (with ownership check)
 export const getByType = query({
   args: {
     projectId: v.id("projects"),
     type: documentTypes,
   },
   handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return [];
+    }
+
+    // Verify project ownership
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) {
+      return [];
+    }
+
     return await ctx.db
       .query("documents")
       .withIndex("by_type", (q) =>
@@ -65,6 +150,11 @@ export const create = mutation({
     type: documentTypes,
   },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+
+    // Verify project ownership
+    await verifyProjectOwnership(ctx, args.projectId, user._id);
+
     const now = Date.now();
 
     const documentId = await ctx.db.insert("documents", {
@@ -90,12 +180,16 @@ export const update = mutation({
     type: v.optional(documentTypes),
   },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
     const { documentId, ...updates } = args;
 
     const doc = await ctx.db.get(documentId);
     if (!doc) {
       throw new Error("Document not found");
     }
+
+    // Verify ownership through project
+    await verifyProjectOwnership(ctx, doc.projectId, user._id);
 
     // Filter out undefined values
     const filteredUpdates = Object.fromEntries(
@@ -122,10 +216,15 @@ export const updateSyncStatus = mutation({
     lastSyncedHash: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+
     const doc = await ctx.db.get(args.documentId);
     if (!doc) {
       throw new Error("Document not found");
     }
+
+    // Verify ownership through project
+    await verifyProjectOwnership(ctx, doc.projectId, user._id);
 
     await ctx.db.patch(args.documentId, {
       syncStatus: args.syncStatus,
@@ -140,19 +239,35 @@ export const updateSyncStatus = mutation({
 export const remove = mutation({
   args: { documentId: v.id("documents") },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+
     const doc = await ctx.db.get(args.documentId);
     if (!doc) {
       throw new Error("Document not found");
     }
 
+    // Verify ownership through project
+    await verifyProjectOwnership(ctx, doc.projectId, user._id);
+
     await ctx.db.delete(args.documentId);
   },
 });
 
-// Get all documents for a project formatted for AI context
+// Get all documents for a project formatted for AI context (with ownership check)
 export const getContextForProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return [];
+    }
+
+    // Verify project ownership
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) {
+      return [];
+    }
+
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))

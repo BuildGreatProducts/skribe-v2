@@ -8,6 +8,7 @@ import { Button, Textarea } from "@/components/ui";
 import { useStoreUser } from "@/hooks/use-store-user";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
+import DOMPurify from "dompurify";
 
 export default function ChatPage() {
   const params = useParams();
@@ -346,13 +347,19 @@ function MarkdownRenderer({
 
 function renderInlineMarkdown(text: string) {
   // Bold
-  text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+  let html = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
   // Italic
-  text = text.replace(/\*(.*?)\*/g, "<em>$1</em>");
+  html = html.replace(/\*(.*?)\*/g, "<em>$1</em>");
   // Inline code
-  text = text.replace(/`(.*?)`/g, '<code class="rounded bg-muted px-1 py-0.5 text-sm">$1</code>');
+  html = html.replace(/`(.*?)`/g, '<code class="rounded bg-muted px-1 py-0.5 text-sm">$1</code>');
 
-  return <span dangerouslySetInnerHTML={{ __html: text }} />;
+  // Sanitize the HTML to prevent XSS attacks
+  const sanitizedHtml = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ["strong", "em", "code"],
+    ALLOWED_ATTR: ["class"],
+  });
+
+  return <span dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />;
 }
 
 // Icons

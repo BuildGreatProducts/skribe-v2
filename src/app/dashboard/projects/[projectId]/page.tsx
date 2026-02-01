@@ -197,8 +197,19 @@ export default function ProjectDashboardPage() {
                 {STARTING_POINTS.map((point) => (
                   <Card
                     key={point.id}
-                    className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Start ${point.title} chat`}
+                    className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                     onClick={() => handleStartChat(point.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        if (e.key === " ") {
+                          e.preventDefault(); // Prevent page scroll on Space
+                        }
+                        handleStartChat(point.id);
+                      }
+                    }}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">

@@ -10,16 +10,25 @@ const ALGORITHM = "AES-GCM";
 const IV_LENGTH = 12; // 96 bits for GCM
 
 /**
+ * Regex pattern for valid 64-character hex string (32 bytes).
+ */
+const HEX_KEY_PATTERN = /^[0-9a-fA-F]{64}$/;
+
+/**
  * Get the encryption key from environment variable.
  * The key should be a 64-character hex string (32 bytes).
  */
 function getEncryptionKey(): Uint8Array {
   const keyHex = process.env.ENCRYPTION_KEY;
-  if (!keyHex || keyHex.length !== 64) {
+
+  // Validate key exists and matches hex pattern
+  if (!keyHex || !HEX_KEY_PATTERN.test(keyHex)) {
     throw new Error(
-      "ENCRYPTION_KEY environment variable must be a 64-character hex string (32 bytes)"
+      "ENCRYPTION_KEY environment variable must be a valid 64-character hex string (32 bytes). " +
+        "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
     );
   }
+
   const keyBytes = new Uint8Array(32);
   for (let i = 0; i < 32; i++) {
     keyBytes[i] = parseInt(keyHex.slice(i * 2, i * 2 + 2), 16);

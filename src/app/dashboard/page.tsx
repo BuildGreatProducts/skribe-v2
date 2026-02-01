@@ -20,19 +20,12 @@ export default function DashboardPage() {
     message: string;
   } | null>(null);
 
-  // Get user's projects - handle the skip case properly
-  const projectsQuery = useQuery(
-    api.projects.getByUser,
-    storedUser?._id ? { userId: storedUser._id } : "skip"
-  );
+  // Get user's projects - uses server-side auth
+  const projectsQuery = useQuery(api.projects.getByUser, {});
 
-  // Normalize projects query result:
-  // - When skipped (no storedUser._id), treat as empty array (not loading)
-  // - When loading (undefined but not skipped), show loading state
-  // - When loaded, use the data
-  const isProjectsSkipped = !storedUser?._id;
-  const projectsData = isProjectsSkipped ? [] : (projectsQuery ?? []);
-  const isProjectsLoading = !isProjectsSkipped && projectsQuery === undefined;
+  // Projects query always runs, returns [] if not authenticated
+  const projectsData = projectsQuery ?? [];
+  const isProjectsLoading = projectsQuery === undefined;
 
   // Disconnect GitHub mutation
   const disconnectGitHub = useMutation(api.users.disconnectGitHub);
