@@ -10,6 +10,7 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx}\""
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.72.1",
     "@clerk/nextjs": "^6.37.1",
     "clsx": "^2.1.1",
     "convex": "^1.31.7",
