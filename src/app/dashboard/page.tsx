@@ -6,10 +6,11 @@ import { api } from "../../../convex/_generated/api";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { UserProfileDropdown } from "@/components/user-profile-dropdown";
 import { ConnectGitHubButton } from "@/components/github/connect-github-button";
+import { TrialBanner } from "@/components/billing";
 import { useStoreUser } from "@/hooks/use-store-user";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 export default function DashboardPage() {
   const { user: clerkUser, isLoaded: isClerkLoaded } = useUser();
@@ -29,6 +30,27 @@ export default function DashboardPage() {
 
   // Disconnect GitHub mutation
   const disconnectGitHub = useMutation(api.users.disconnectGitHub);
+
+  // Calculate trial status
+  const trialStatus = useMemo(() => {
+    if (!storedUser || storedUser.subscriptionStatus !== "trial") {
+      return { showBanner: false, daysRemaining: 0, isExpired: false };
+    }
+
+    const now = Date.now();
+    const trialEndsAt = storedUser.trialEndsAt;
+    if (!trialEndsAt) {
+      return { showBanner: false, daysRemaining: 0, isExpired: false };
+    }
+
+    const isExpired = now > trialEndsAt;
+    const daysRemaining = Math.max(
+      0,
+      Math.ceil((trialEndsAt - now) / (1000 * 60 * 60 * 24))
+    );
+
+    return { showBanner: true, daysRemaining, isExpired };
+  }, [storedUser]);
 
   // Handle URL query params for GitHub OAuth status
   useEffect(() => {
@@ -100,6 +122,14 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-muted">
+      {/* Trial Banner */}
+      {trialStatus.showBanner && (
+        <TrialBanner
+          daysRemaining={trialStatus.daysRemaining}
+          isExpired={trialStatus.isExpired}
+        />
+      )}
+
       {/* Header */}
       <header className="border-b border-border bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
@@ -179,9 +209,11 @@ export default function DashboardPage() {
                   )}
               </div>
               {storedUser?.subscriptionTier !== "pro" && (
-                <Button variant="secondary" size="sm">
-                  Upgrade
-                </Button>
+                <Link href="/pricing">
+                  <Button variant="secondary" size="sm">
+                    Upgrade
+                  </Button>
+                </Link>
               )}
             </div>
           </CardContent>
