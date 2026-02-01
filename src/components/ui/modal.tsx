@@ -7,6 +7,7 @@ import {
   useEffect,
   useCallback,
   ReactNode,
+  useId,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -33,6 +34,10 @@ const Modal = forwardRef<HTMLDivElement, ModalProps>(
     },
     ref
   ) => {
+    const uniqueId = useId();
+    const titleId = `${uniqueId}-title`;
+    const descriptionId = `${uniqueId}-description`;
+
     const handleEscape = useCallback(
       (event: KeyboardEvent) => {
         if (event.key === "Escape") {
@@ -76,8 +81,8 @@ const Modal = forwardRef<HTMLDivElement, ModalProps>(
           ref={ref}
           role="dialog"
           aria-modal="true"
-          aria-labelledby={title ? "modal-title" : undefined}
-          aria-describedby={description ? "modal-description" : undefined}
+          aria-labelledby={title ? titleId : undefined}
+          aria-describedby={description ? descriptionId : undefined}
           className={cn(
             "relative z-50 w-full rounded-2xl bg-white p-6 shadow-lg",
             "animate-in fade-in-0 zoom-in-95",
@@ -113,14 +118,14 @@ const Modal = forwardRef<HTMLDivElement, ModalProps>(
             <div className="mb-4">
               {title && (
                 <h2
-                  id="modal-title"
+                  id={titleId}
                   className="font-serif text-xl font-semibold"
                 >
                   {title}
                 </h2>
               )}
               {description && (
-                <p id="modal-description" className="mt-1 text-muted-foreground">
+                <p id={descriptionId} className="mt-1 text-muted-foreground">
                   {description}
                 </p>
               )}

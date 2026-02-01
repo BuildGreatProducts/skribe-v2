@@ -8,7 +8,10 @@ export default defineSchema({
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     githubConnected: v.boolean(),
-    githubAccessToken: v.optional(v.string()),
+    // Encrypted GitHub access token - use lib/encryption for encrypt/decrypt
+    encryptedGitHubToken: v.optional(v.string()),
+    // Initialization vector for token encryption
+    githubTokenIv: v.optional(v.string()),
     githubUsername: v.optional(v.string()),
     subscriptionTier: v.union(
       v.literal("free"),

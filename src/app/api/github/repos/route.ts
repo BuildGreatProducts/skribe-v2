@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
+import { decryptToken } from "@/lib/encryption";
 
 function getConvexClient() {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -21,33 +22,51 @@ export async function GET() {
   try {
     const convex = getConvexClient();
 
-    // Get user from Convex to retrieve GitHub token
+    // Get user from Convex to retrieve encrypted GitHub token
     const user = await convex.query(api.users.getByClerkId, {
       clerkId: userId,
     });
 
-    if (!user || !user.githubConnected || !user.githubAccessToken) {
+    if (
+      !user ||
+      !user.githubConnected ||
+      !user.encryptedGitHubToken ||
+      !user.githubTokenIv
+    ) {
       return NextResponse.json(
         { error: "GitHub not connected" },
         { status: 400 }
       );
     }
 
+    // Decrypt the access token
+    const accessToken = await decryptToken(
+      user.encryptedGitHubToken,
+      user.githubTokenIv
+    );
+
     // Fetch user's repositories from GitHub
     const response = await fetch(
       "https://api.github.com/user/repos?sort=updated&per_page=100",
       {
         headers: {
-          Authorization: `Bearer ${user.githubAccessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           Accept: "application/vnd.github+json",
         },
       }
     );
 
     if (!response.ok) {
-      const error = await response.json();
+      const errorText = await response.text();
+      let errorMessage = "Failed to fetch repositories";
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.message || errorMessage;
+      } catch {
+        // Use default message if JSON parsing fails
+      }
       return NextResponse.json(
-        { error: error.message || "Failed to fetch repositories" },
+        { error: errorMessage },
         { status: response.status }
       );
     }
@@ -80,8 +99,10 @@ export async function GET() {
     return NextResponse.json({ repos: simplifiedRepos });
   } catch (err) {
     console.error("Error fetching repositories:", err);
+    const errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
     return NextResponse.json(
-      { error: "Failed to fetch repositories" },
+      { error: `Failed to fetch repositories: ${errorMessage}` },
       { status: 500 }
     );
   }

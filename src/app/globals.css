@@ -1,6 +1,10 @@
 @import "tailwindcss";
 
 :root {
+  /* Fonts */
+  --font-helvetica: Helvetica, Arial, sans-serif;
+  --font-ibm-plex-serif: 'IBM Plex Serif', Georgia, serif;
+
   /* Background colors */
   --background: #ffffff;
   --foreground: #171717;

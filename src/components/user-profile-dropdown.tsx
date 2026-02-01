@@ -21,7 +21,6 @@ export function UserProfileDropdown() {
         {user.fullName || user.emailAddresses[0]?.emailAddress}
       </span>
       <UserButton
-        afterSignOutUrl="/"
         appearance={{
           elements: {
             avatarBox: "h-8 w-8",

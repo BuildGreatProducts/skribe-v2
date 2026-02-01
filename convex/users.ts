@@ -42,13 +42,22 @@ export const upsertUser = mutation({
     const now = Date.now();
 
     if (existingUser) {
-      // Update existing user
-      await ctx.db.patch(existingUser._id, {
+      // Build update object only with explicitly provided fields
+      // This prevents undefined values from overwriting existing data
+      const updateData: Record<string, unknown> = {
         email: args.email,
-        name: args.name,
-        imageUrl: args.imageUrl,
         updatedAt: now,
-      });
+      };
+
+      // Only include name and imageUrl if they are explicitly provided
+      if (args.name !== undefined) {
+        updateData.name = args.name;
+      }
+      if (args.imageUrl !== undefined) {
+        updateData.imageUrl = args.imageUrl;
+      }
+
+      await ctx.db.patch(existingUser._id, updateData);
       return existingUser._id;
     }
 
@@ -72,11 +81,12 @@ export const upsertUser = mutation({
   },
 });
 
-// Update GitHub connection status
+// Update GitHub connection status with encrypted token
 export const updateGitHubConnection = mutation({
   args: {
     clerkId: v.string(),
-    githubAccessToken: v.string(),
+    encryptedGitHubToken: v.string(),
+    githubTokenIv: v.string(),
     githubUsername: v.string(),
   },
   handler: async (ctx, args) => {
@@ -91,7 +101,8 @@ export const updateGitHubConnection = mutation({
 
     await ctx.db.patch(user._id, {
       githubConnected: true,
-      githubAccessToken: args.githubAccessToken,
+      encryptedGitHubToken: args.encryptedGitHubToken,
+      githubTokenIv: args.githubTokenIv,
       githubUsername: args.githubUsername,
       updatedAt: Date.now(),
     });
@@ -113,7 +124,8 @@ export const disconnectGitHub = mutation({
 
     await ctx.db.patch(user._id, {
       githubConnected: false,
-      githubAccessToken: undefined,
+      encryptedGitHubToken: undefined,
+      githubTokenIv: undefined,
       githubUsername: undefined,
       updatedAt: Date.now(),
     });
@@ -148,12 +160,20 @@ export const updateSubscription = mutation({
       throw new Error("User not found");
     }
 
-    await ctx.db.patch(user._id, {
+    // Build update object only with explicitly provided fields
+    const updateData: Record<string, unknown> = {
       subscriptionTier: args.subscriptionTier,
       subscriptionStatus: args.subscriptionStatus,
-      subscriptionEndsAt: args.subscriptionEndsAt,
-      polarCustomerId: args.polarCustomerId,
       updatedAt: Date.now(),
-    });
+    };
+
+    if (args.subscriptionEndsAt !== undefined) {
+      updateData.subscriptionEndsAt = args.subscriptionEndsAt;
+    }
+    if (args.polarCustomerId !== undefined) {
+      updateData.polarCustomerId = args.polarCustomerId;
+    }
+
+    await ctx.db.patch(user._id, updateData);
   },
 });

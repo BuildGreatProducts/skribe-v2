@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 
 // Get all projects for a user
 export const getByUser = query({
@@ -65,6 +66,7 @@ export const create = mutation({
 export const update = mutation({
   args: {
     projectId: v.id("projects"),
+    userId: v.id("users"), // Required for ownership verification
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     githubRepoId: v.optional(v.string()),
@@ -72,7 +74,18 @@ export const update = mutation({
     githubRepoUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { projectId, ...updates } = args;
+    const { projectId, userId, ...updates } = args;
+
+    // Verify project exists
+    const project = await ctx.db.get(projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    // Verify ownership
+    if (project.userId !== userId) {
+      throw new Error("Unauthorized: You do not own this project");
+    }
 
     // Filter out undefined values
     const filteredUpdates = Object.fromEntries(
@@ -86,39 +99,67 @@ export const update = mutation({
   },
 });
 
+// Helper to batch delete items
+async function batchDelete(
+  ctx: { db: { delete: (id: Id<"documents"> | Id<"chats"> | Id<"messages">) => Promise<void> } },
+  items: Array<{ _id: Id<"documents"> | Id<"chats"> | Id<"messages"> }>,
+  batchSize: number = 50
+) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map((item) => ctx.db.delete(item._id)));
+  }
+}
+
 // Delete a project and all its associated data
 export const remove = mutation({
-  args: { projectId: v.id("projects") },
+  args: {
+    projectId: v.id("projects"),
+    userId: v.id("users"), // Required for ownership verification
+  },
   handler: async (ctx, args) => {
-    // Delete all documents for this project
+    // Verify project exists
+    const project = await ctx.db.get(args.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    // Verify ownership
+    if (project.userId !== args.userId) {
+      throw new Error("Unauthorized: You do not own this project");
+    }
+
+    // Collect all documents for this project
     const documents = await ctx.db
       .query("documents")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
 
-    for (const doc of documents) {
-      await ctx.db.delete(doc._id);
-    }
-
-    // Delete all chats for this project
+    // Collect all chats for this project
     const chats = await ctx.db
       .query("chats")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
 
-    for (const chat of chats) {
-      // Delete all messages for this chat
-      const messages = await ctx.db
-        .query("messages")
-        .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
-        .collect();
+    // Collect all messages for all chats
+    const allMessages = await Promise.all(
+      chats.map((chat) =>
+        ctx.db
+          .query("messages")
+          .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
+          .collect()
+      )
+    );
+    const messages = allMessages.flat();
 
-      for (const message of messages) {
-        await ctx.db.delete(message._id);
-      }
+    // Batch delete messages first (most numerous)
+    await batchDelete(ctx, messages);
 
-      await ctx.db.delete(chat._id);
-    }
+    // Batch delete chats
+    await batchDelete(ctx, chats);
+
+    // Batch delete documents
+    await batchDelete(ctx, documents);
 
     // Delete the project itself
     await ctx.db.delete(args.projectId);

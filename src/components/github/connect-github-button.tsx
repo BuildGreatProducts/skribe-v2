@@ -38,7 +38,7 @@ export function ConnectGitHubButton({
         <div className="flex items-center gap-2 rounded-xl bg-primary-light px-4 py-2">
           <GitHubIcon className="h-5 w-5 text-primary" />
           <span className="text-sm font-medium text-primary">
-            Connected as @{username}
+            Connected as @{username ?? "GitHub"}
           </span>
         </div>
         <Button

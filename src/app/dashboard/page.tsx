@@ -20,11 +20,19 @@ export default function DashboardPage() {
     message: string;
   } | null>(null);
 
-  // Get user's projects
-  const projects = useQuery(
+  // Get user's projects - handle the skip case properly
+  const projectsQuery = useQuery(
     api.projects.getByUser,
     storedUser?._id ? { userId: storedUser._id } : "skip"
   );
+
+  // Normalize projects query result:
+  // - When skipped (no storedUser._id), treat as empty array (not loading)
+  // - When loading (undefined but not skipped), show loading state
+  // - When loaded, use the data
+  const isProjectsSkipped = !storedUser?._id;
+  const projectsData = isProjectsSkipped ? [] : (projectsQuery ?? []);
+  const isProjectsLoading = !isProjectsSkipped && projectsQuery === undefined;
 
   // Disconnect GitHub mutation
   const disconnectGitHub = useMutation(api.users.disconnectGitHub);
@@ -56,11 +64,36 @@ export default function DashboardPage() {
   const handleDisconnectGitHub = async () => {
     if (!clerkUser?.id) return;
     try {
-      await fetch("/api/github/disconnect", { method: "POST" });
-      // Trigger re-fetch by clearing and reloading
+      const res = await fetch("/api/github/disconnect", { method: "POST" });
+
+      if (!res.ok) {
+        // Parse error response if possible
+        let errorMessage = "Failed to disconnect GitHub";
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // Use status text if JSON parsing fails
+          errorMessage = `Failed to disconnect GitHub: ${res.status} ${res.statusText}`;
+        }
+        console.error(errorMessage);
+        setNotification({
+          type: "error",
+          message: errorMessage,
+        });
+        return;
+      }
+
+      // Only reload on success
       window.location.reload();
     } catch (error) {
-      console.error("Failed to disconnect GitHub:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      console.error("Failed to disconnect GitHub:", errorMessage);
+      setNotification({
+        type: "error",
+        message: `Failed to disconnect GitHub: ${errorMessage}`,
+      });
     }
   };
 
@@ -169,7 +202,7 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {projects === undefined ? (
+        {isProjectsLoading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <div
@@ -178,7 +211,7 @@ export default function DashboardPage() {
               ></div>
             ))}
           </div>
-        ) : projects.length === 0 ? (
+        ) : projectsData.length === 0 ? (
           <Card className="p-12 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-light">
               <FolderIcon className="h-8 w-8 text-primary" />
@@ -193,7 +226,7 @@ export default function DashboardPage() {
           </Card>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {projects.map((project) => (
+            {projectsData.map((project) => (
               <Link
                 key={project._id}
                 href={`/dashboard/projects/${project._id}`}

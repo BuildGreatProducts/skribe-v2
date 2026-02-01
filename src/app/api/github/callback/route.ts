@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
+import { encryptToken } from "@/lib/encryption";
 
 function getConvexClient() {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -69,8 +70,26 @@ export async function GET(request: NextRequest) {
       }
     );
 
+    // Validate token response
+    if (!tokenResponse.ok) {
+      const errorBody = await tokenResponse.text();
+      console.error(
+        "GitHub token exchange failed:",
+        tokenResponse.status,
+        tokenResponse.statusText,
+        errorBody
+      );
+      return NextResponse.redirect(
+        new URL(
+          `/dashboard?github_error=${encodeURIComponent(`Token exchange failed: ${tokenResponse.status} ${tokenResponse.statusText}`)}`,
+          request.url
+        )
+      );
+    }
+
     const tokenData = await tokenResponse.json();
 
+    // Check for OAuth errors in response body
     if (tokenData.error) {
       return NextResponse.redirect(
         new URL(
@@ -80,7 +99,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Validate access token exists
     const accessToken = tokenData.access_token;
+    if (!accessToken || typeof accessToken !== "string" || !accessToken.trim()) {
+      return NextResponse.redirect(
+        new URL(
+          `/dashboard?github_error=${encodeURIComponent("No access token received from GitHub")}`,
+          request.url
+        )
+      );
+    }
 
     // Get GitHub user info
     const userResponse = await fetch("https://api.github.com/user", {
@@ -90,17 +118,48 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Validate user response
+    if (!userResponse.ok) {
+      const errorBody = await userResponse.text();
+      console.error(
+        "GitHub user fetch failed:",
+        userResponse.status,
+        userResponse.statusText,
+        errorBody
+      );
+      return NextResponse.redirect(
+        new URL(
+          `/dashboard?github_error=${encodeURIComponent(`Failed to fetch GitHub user: ${userResponse.status}`)}`,
+          request.url
+        )
+      );
+    }
+
     const userData = await userResponse.json();
 
-    // Store GitHub connection in Convex
+    // Validate username exists
+    if (!userData.login || typeof userData.login !== "string") {
+      return NextResponse.redirect(
+        new URL(
+          `/dashboard?github_error=${encodeURIComponent("Invalid GitHub user data received")}`,
+          request.url
+        )
+      );
+    }
+
+    // Encrypt the access token before storing
+    const { encrypted, iv } = await encryptToken(accessToken);
+
+    // Store GitHub connection in Convex with encrypted token
     const convex = getConvexClient();
     await convex.mutation(api.users.updateGitHubConnection, {
       clerkId: userId,
-      githubAccessToken: accessToken,
+      encryptedGitHubToken: encrypted,
+      githubTokenIv: iv,
       githubUsername: userData.login,
     });
 
-    // Clear the state cookie
+    // Clear the state cookie and redirect to dashboard
     const response = NextResponse.redirect(
       new URL("/dashboard?github_connected=true", request.url)
     );
@@ -109,8 +168,13 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (err) {
     console.error("GitHub OAuth error:", err);
+    const errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
     return NextResponse.redirect(
-      new URL("/dashboard?github_error=token_exchange_failed", request.url)
+      new URL(
+        `/dashboard?github_error=${encodeURIComponent(`OAuth failed: ${errorMessage}`)}`,
+        request.url
+      )
     );
   }
 }

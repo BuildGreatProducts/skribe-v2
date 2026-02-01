@@ -17,8 +17,8 @@ export async function GET() {
     );
   }
 
-  // Generate a random state for CSRF protection
-  const state = Math.random().toString(36).substring(2, 15);
+  // Generate a cryptographically secure random state for CSRF protection
+  const state = crypto.randomUUID();
 
   // Store state in a cookie for verification during callback
   const redirectUrl = new URL("https://github.com/login/oauth/authorize");

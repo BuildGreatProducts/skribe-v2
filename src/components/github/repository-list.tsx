@@ -89,6 +89,7 @@ export function RepositoryList({ onSelect, selectedRepoId }: RepositoryListProps
         placeholder="Search repositories..."
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
+        aria-label="Search repositories"
         className="w-full rounded-xl border border-border bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
       />
 

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { InputHTMLAttributes, forwardRef } from "react";
+import { InputHTMLAttributes, forwardRef, useId } from "react";
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -9,7 +9,10 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, type = "text", label, error, helperText, id, ...props }, ref) => {
-    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-");
+    const generatedId = useId();
+    const inputId = id || generatedId;
+    const errorId = `${inputId}-error`;
+    const helperId = `${inputId}-helper`;
 
     return (
       <div className="w-full">
@@ -24,6 +27,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           type={type}
           id={inputId}
+          aria-invalid={error ? "true" : undefined}
+          aria-describedby={
+            error ? errorId : helperText ? helperId : undefined
+          }
           className={cn(
             "flex h-11 w-full rounded-xl border bg-white px-4 py-2 text-base transition-colors",
             "placeholder:text-muted-foreground",
@@ -37,9 +44,15 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           {...props}
         />
-        {error && <p className="mt-1.5 text-sm text-destructive">{error}</p>}
+        {error && (
+          <p id={errorId} className="mt-1.5 text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
         {helperText && !error && (
-          <p className="mt-1.5 text-sm text-muted-foreground">{helperText}</p>
+          <p id={helperId} className="mt-1.5 text-sm text-muted-foreground">
+            {helperText}
+          </p>
         )}
       </div>
     );
