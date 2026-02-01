@@ -11,9 +11,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui";
+import { CustomChatModal } from "@/components/chat";
 import { useStoreUser } from "@/hooks/use-store-user";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 // Starting points configuration
 const STARTING_POINTS = [
@@ -90,6 +91,7 @@ export default function ProjectDashboardPage() {
   const projectId = params.projectId as string;
   const { user: storedUser, isLoading: isUserLoading } = useStoreUser();
   const [isCreatingChat, setIsCreatingChat] = useState<string | null>(null);
+  const [isCustomChatModalOpen, setIsCustomChatModalOpen] = useState(false);
 
   // Fetch project data
   const project = useQuery(
@@ -112,6 +114,21 @@ export default function ProjectDashboardPage() {
   // Create chat mutation
   const createChat = useMutation(api.chats.create);
 
+  // Calculate which starting points have been completed (have chats)
+  const completedStartingPoints = useMemo(() => {
+    if (!chats) return new Set<string>();
+    const completedTypes = new Set<string>();
+    for (const chat of chats) {
+      if (chat.type !== "custom") {
+        completedTypes.add(chat.type);
+      }
+    }
+    return completedTypes;
+  }, [chats]);
+
+  // Check if project is new (no chats yet)
+  const isNewProject = chats !== undefined && chats.length === 0;
+
   const handleStartChat = async (type: ChatType) => {
     if (!storedUser?._id || !projectId) return;
 
@@ -127,6 +144,26 @@ export default function ProjectDashboardPage() {
       router.push(`/dashboard/projects/${projectId}/chat/${chatId}`);
     } catch (error) {
       console.error("Failed to create chat:", error);
+      setIsCreatingChat(null);
+    }
+  };
+
+  const handleCreateCustomChat = async (title: string, systemPrompt: string) => {
+    if (!storedUser?._id || !projectId) return;
+
+    setIsCreatingChat("custom");
+    try {
+      const chatId = await createChat({
+        projectId: projectId as Id<"projects">,
+        type: "custom",
+        title,
+        systemPrompt: systemPrompt || undefined,
+      });
+
+      setIsCustomChatModalOpen(false);
+      router.push(`/dashboard/projects/${projectId}/chat/${chatId}`);
+    } catch (error) {
+      console.error("Failed to create custom chat:", error);
       setIsCreatingChat(null);
     }
   };
@@ -194,46 +231,68 @@ export default function ProjectDashboardPage() {
                 Starting Points
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {STARTING_POINTS.map((point) => (
-                  <Card
-                    key={point.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Start ${point.title} chat`}
-                    className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                    onClick={() => handleStartChat(point.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        if (e.key === " ") {
-                          e.preventDefault(); // Prevent page scroll on Space
+                {STARTING_POINTS.map((point) => {
+                  const isCompleted = completedStartingPoints.has(point.id);
+                  const isRecommended = isNewProject && point.order === 1;
+
+                  return (
+                    <Card
+                      key={point.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Start ${point.title} chat${isCompleted ? " (completed)" : ""}${isRecommended ? " (recommended)" : ""}`}
+                      className={`cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                        isCompleted ? "bg-success/5 border-success/30" : ""
+                      } ${isRecommended ? "ring-2 ring-primary ring-offset-2" : ""}`}
+                      onClick={() => handleStartChat(point.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          if (e.key === " ") {
+                            e.preventDefault(); // Prevent page scroll on Space
+                          }
+                          handleStartChat(point.id);
                         }
-                        handleStartChat(point.id);
-                      }
-                    }}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-light">
-                          <StartingPointIcon
-                            icon={point.icon}
-                            className="h-5 w-5 text-primary"
-                          />
+                      }}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                              isCompleted ? "bg-success/20" : "bg-primary-light"
+                            }`}
+                          >
+                            {isCompleted ? (
+                              <CheckIcon className="h-5 w-5 text-success" />
+                            ) : (
+                              <StartingPointIcon
+                                icon={point.icon}
+                                className="h-5 w-5 text-primary"
+                              />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-medium text-foreground">
+                                {point.title}
+                              </h3>
+                              {isRecommended && (
+                                <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-white">
+                                  Start here
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                              {point.description}
+                            </p>
+                          </div>
+                          {isCreatingChat === point.id && (
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+                          )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-foreground">
-                            {point.title}
-                          </h3>
-                          <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                            {point.description}
-                          </p>
-                        </div>
-                        {isCreatingChat === point.id && (
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </section>
 
@@ -246,8 +305,7 @@ export default function ProjectDashboardPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleStartChat("custom")}
-                  isLoading={isCreatingChat === "custom"}
+                  onClick={() => setIsCustomChatModalOpen(true)}
                 >
                   New Custom Chat
                 </Button>
@@ -340,11 +398,36 @@ export default function ProjectDashboardPage() {
           </aside>
         </div>
       </main>
+
+      {/* Custom Chat Modal */}
+      <CustomChatModal
+        isOpen={isCustomChatModalOpen}
+        onClose={() => setIsCustomChatModalOpen(false)}
+        onSubmit={handleCreateCustomChat}
+        isLoading={isCreatingChat === "custom"}
+      />
     </div>
   );
 }
 
 // Icon components
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 function GitHubIcon({ className }: { className?: string }) {
   return (
     <svg

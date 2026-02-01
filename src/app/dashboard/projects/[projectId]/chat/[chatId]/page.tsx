@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../../convex/_generated/dataModel";
 import { Button, Textarea } from "@/components/ui";
+import { EditChatModal } from "@/components/chat";
 import { useStoreUser } from "@/hooks/use-store-user";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
@@ -20,6 +21,8 @@ export default function ChatPage() {
   const [inputValue, setInputValue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isUpdatingChat, setIsUpdatingChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -38,6 +41,7 @@ export default function ChatPage() {
   // Mutations
   const createMessage = useMutation(api.messages.create);
   const updateMessage = useMutation(api.messages.update);
+  const updateChat = useMutation(api.chats.update);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -126,6 +130,24 @@ export default function ChatPage() {
     }
   };
 
+  const handleUpdateChat = async (title: string, systemPrompt: string) => {
+    if (!chatId) return;
+
+    setIsUpdatingChat(true);
+    try {
+      await updateChat({
+        chatId: chatId as Id<"chats">,
+        title,
+        systemPrompt: systemPrompt || undefined,
+      });
+      setIsEditModalOpen(false);
+    } catch (error) {
+      console.error("Failed to update chat:", error);
+    } finally {
+      setIsUpdatingChat(false);
+    }
+  };
+
   if (chatData === undefined || project === undefined) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -165,9 +187,20 @@ export default function ChatPage() {
               {project?.name}
             </p>
           </div>
-          <span className="rounded-full bg-primary-light px-3 py-1 text-xs font-medium text-primary">
-            {chatData.type.replace(/_/g, " ")}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-primary-light px-3 py-1 text-xs font-medium text-primary">
+              {chatData.type.replace(/_/g, " ")}
+            </span>
+            {chatData.type === "custom" && (
+              <button
+                onClick={() => setIsEditModalOpen(true)}
+                className="rounded-lg p-2 hover:bg-muted transition-colors"
+                aria-label="Edit chat settings"
+              >
+                <SettingsIcon className="h-5 w-5 text-muted-foreground" />
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -244,6 +277,18 @@ export default function ChatPage() {
           Press Enter to send, Shift+Enter for new line
         </p>
       </div>
+
+      {/* Edit Chat Modal */}
+      {chatData.type === "custom" && (
+        <EditChatModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSubmit={handleUpdateChat}
+          isLoading={isUpdatingChat}
+          initialTitle={chatData.title}
+          initialSystemPrompt={chatData.systemPrompt || ""}
+        />
+      )}
     </div>
   );
 }
@@ -363,6 +408,24 @@ function renderInlineMarkdown(text: string) {
 }
 
 // Icons
+function SettingsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
 function ArrowLeftIcon({ className }: { className?: string }) {
   return (
     <svg
