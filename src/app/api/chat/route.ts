@@ -8,6 +8,84 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
+// Document type mapping from chat type to document type
+const CHAT_TYPE_TO_DOC_TYPE: Record<string, string> = {
+  product_refinement: "prd",
+  market_validation: "market",
+  customer_persona: "persona",
+  brand_strategy: "brand",
+  business_model: "business",
+  new_features: "feature",
+  tech_stack: "tech",
+  create_prd: "prd",
+  go_to_market: "gtm",
+  custom: "custom",
+};
+
+// Claude tool definitions for document management
+const DOCUMENT_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "create_document",
+    description:
+      "Create a new document for the project. Use this when you've gathered enough information from the conversation to create a comprehensive document. The document will be saved to the project and can be viewed/edited by the user.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        title: {
+          type: "string",
+          description:
+            "The title of the document (e.g., 'Product Vision', 'Market Analysis', 'Customer Personas')",
+        },
+        content: {
+          type: "string",
+          description:
+            "The full markdown content of the document. Use proper markdown formatting with headers, lists, etc.",
+        },
+        type: {
+          type: "string",
+          enum: [
+            "prd",
+            "persona",
+            "market",
+            "brand",
+            "business",
+            "feature",
+            "tech",
+            "gtm",
+            "custom",
+          ],
+          description: "The type of document being created",
+        },
+      },
+      required: ["title", "content", "type"],
+    },
+  },
+  {
+    name: "update_document",
+    description:
+      "Update an existing document. Use this when the user wants to edit, revise, or add to an existing document. Provide the complete updated content.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        document_id: {
+          type: "string",
+          description: "The ID of the document to update",
+        },
+        title: {
+          type: "string",
+          description:
+            "The new title for the document (optional, only include if changing)",
+        },
+        content: {
+          type: "string",
+          description: "The complete updated markdown content of the document",
+        },
+      },
+      required: ["document_id", "content"],
+    },
+  },
+];
+
 export async function POST(request: NextRequest) {
   try {
     const { userId: clerkUserId } = await auth();
@@ -31,10 +109,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 403 });
     }
 
     // Verify project ownership
@@ -74,16 +149,49 @@ export async function POST(request: NextRequest) {
       projectId: projectId as Id<"projects">,
     });
 
+    // Get full documents for tool use (need IDs)
+    const fullDocuments = await convex.query(api.documents.getByProject, {
+      projectId: projectId as Id<"projects">,
+    });
+
     // Get chat history (already ownership-checked)
     const messages = await convex.query(api.messages.getByChat, {
       chatId: chatId as Id<"chats">,
     });
 
-    // Build system prompt with document context
-    const systemPrompt = chat.systemPrompt || buildSystemPrompt(chat.type, documents);
+    // Build system prompt with document context and tool instructions
+    const baseSystemPrompt =
+      chat.systemPrompt || buildSystemPrompt(chat.type, documents);
+    const toolInstructions = `
+
+## Available Tools
+
+You have access to the following tools for document management:
+
+1. **create_document**: Create a new document when you have enough information from the conversation. Always ask the user for confirmation before creating a document. After gathering sufficient information, say something like "I can create a [Document Type] document based on our discussion. Would you like me to create it now?"
+
+2. **update_document**: Update an existing document when the user wants to make changes. Reference the document by its ID.
+
+### Existing Documents
+
+${
+  fullDocuments.length > 0
+    ? fullDocuments
+        .map((doc) => `- **${doc.title}** (ID: ${doc._id}, Type: ${doc.type})`)
+        .join("\n")
+    : "No documents have been created yet for this project."
+}
+
+When creating or updating documents:
+- Use clear, well-structured markdown formatting
+- Include relevant sections with headers
+- Be comprehensive but concise
+- Ask clarifying questions if needed before creating`;
+
+    const systemPrompt = baseSystemPrompt + toolInstructions;
 
     // Format messages for Claude API
-    const claudeMessages = messages
+    const claudeMessages: Anthropic.MessageParam[] = messages
       .filter((m) => m.role !== "system" && m.content.trim() !== "")
       .map((m) => ({
         role: m.role as "user" | "assistant",
@@ -110,25 +218,149 @@ export async function POST(request: NextRequest) {
       apiKey,
     });
 
-    // Create streaming response
+    // Create streaming response with tool support
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const response = await anthropic.messages.create({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 4096,
-            system: systemPrompt,
-            messages: claudeMessages,
-            stream: true,
-          });
+          let currentMessages = claudeMessages;
+          let continueLoop = true;
 
-          for await (const event of response) {
-            if (
-              event.type === "content_block_delta" &&
-              event.delta.type === "text_delta"
-            ) {
-              controller.enqueue(encoder.encode(event.delta.text));
+          while (continueLoop) {
+            const response = await anthropic.messages.create({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 4096,
+              system: systemPrompt,
+              messages: currentMessages,
+              tools: DOCUMENT_TOOLS,
+              stream: true,
+            });
+
+            let currentToolUse: {
+              id: string;
+              name: string;
+              input: string;
+            } | null = null;
+            let stopReason: string | null = null;
+
+            for await (const event of response) {
+              if (event.type === "content_block_start") {
+                if (event.content_block.type === "tool_use") {
+                  currentToolUse = {
+                    id: event.content_block.id,
+                    name: event.content_block.name,
+                    input: "",
+                  };
+                }
+              } else if (event.type === "content_block_delta") {
+                if (event.delta.type === "text_delta") {
+                  controller.enqueue(encoder.encode(event.delta.text));
+                } else if (
+                  event.delta.type === "input_json_delta" &&
+                  currentToolUse
+                ) {
+                  currentToolUse.input += event.delta.partial_json;
+                }
+              } else if (event.type === "message_delta") {
+                stopReason = event.delta.stop_reason;
+              }
+            }
+
+            // If the model used a tool, process it and continue
+            if (stopReason === "tool_use" && currentToolUse) {
+              const toolInput = JSON.parse(currentToolUse.input);
+              let toolResult: string;
+
+              try {
+                if (currentToolUse.name === "create_document") {
+                  // Get appropriate document type
+                  const docType =
+                    toolInput.type ||
+                    CHAT_TYPE_TO_DOC_TYPE[chat.type] ||
+                    "custom";
+
+                  // Create the document
+                  const documentId = await convex.mutation(
+                    api.documents.create,
+                    {
+                      projectId: projectId as Id<"projects">,
+                      title: toolInput.title,
+                      content: toolInput.content,
+                      type: docType as
+                        | "prd"
+                        | "persona"
+                        | "market"
+                        | "brand"
+                        | "business"
+                        | "feature"
+                        | "tech"
+                        | "gtm"
+                        | "custom",
+                    }
+                  );
+
+                  toolResult = `Document "${toolInput.title}" created successfully with ID: ${documentId}. The document is now available in the project dashboard.`;
+
+                  // Send a special marker to the client so it knows a document was created
+                  controller.enqueue(
+                    encoder.encode(
+                      `\n\n---\n**Document Created:** ${toolInput.title}\n---\n\n`
+                    )
+                  );
+                } else if (currentToolUse.name === "update_document") {
+                  // Update the document
+                  await convex.mutation(api.documents.update, {
+                    documentId: toolInput.document_id as Id<"documents">,
+                    title: toolInput.title,
+                    content: toolInput.content,
+                  });
+
+                  toolResult = `Document updated successfully.`;
+
+                  // Send a special marker to the client
+                  controller.enqueue(
+                    encoder.encode(
+                      `\n\n---\n**Document Updated:** ${toolInput.title || "Document"}\n---\n\n`
+                    )
+                  );
+                } else {
+                  toolResult = `Unknown tool: ${currentToolUse.name}`;
+                }
+              } catch (error) {
+                toolResult = `Error: ${error instanceof Error ? error.message : "Failed to execute tool"}`;
+              }
+
+              // Add the assistant's tool use and the result to messages
+              currentMessages = [
+                ...currentMessages,
+                {
+                  role: "assistant" as const,
+                  content: [
+                    {
+                      type: "tool_use" as const,
+                      id: currentToolUse.id,
+                      name: currentToolUse.name,
+                      input: toolInput,
+                    },
+                  ],
+                },
+                {
+                  role: "user" as const,
+                  content: [
+                    {
+                      type: "tool_result" as const,
+                      tool_use_id: currentToolUse.id,
+                      content: toolResult,
+                    },
+                  ],
+                },
+              ];
+
+              // Continue the loop to get Claude's response to the tool result
+              currentToolUse = null;
+            } else {
+              // No tool use, we're done
+              continueLoop = false;
             }
           }
 
@@ -150,7 +382,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Chat API error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
+      {
+        error: error instanceof Error ? error.message : "Internal server error",
+      },
       { status: 500 }
     );
   }
