@@ -61,6 +61,9 @@ export default function ChatPage() {
     setInputValue("");
     setIsSubmitting(true);
 
+    // Declare outside try so it's accessible in catch
+    let assistantMessageId: Id<"messages"> | null = null;
+
     try {
       // Create user message
       await createMessage({
@@ -71,7 +74,7 @@ export default function ChatPage() {
 
       // Create placeholder for assistant message
       setIsStreaming(true);
-      const assistantMessageId = await createMessage({
+      assistantMessageId = await createMessage({
         chatId: chatId as Id<"chats">,
         role: "assistant",
         content: "",
@@ -103,7 +106,8 @@ export default function ChatPage() {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value);
+          // Use stream: true to handle multibyte UTF-8 sequences correctly
+          const chunk = decoder.decode(value, { stream: true });
           fullContent += chunk;
 
           // Update the message with accumulated content
@@ -112,10 +116,30 @@ export default function ChatPage() {
             content: fullContent,
           });
         }
+
+        // Flush any remaining bytes from the decoder
+        const remaining = decoder.decode();
+        if (remaining) {
+          fullContent += remaining;
+          await updateMessage({
+            messageId: assistantMessageId,
+            content: fullContent,
+          });
+        }
       }
     } catch (error) {
       console.error("Failed to send message:", error);
-      // Could show error toast here
+      // Update the assistant message with error content if it was created
+      if (assistantMessageId) {
+        try {
+          await updateMessage({
+            messageId: assistantMessageId,
+            content: "Sorry, I encountered an error and couldn't respond. Please try again.",
+          });
+        } catch {
+          // Ignore update error
+        }
+      }
     } finally {
       setIsSubmitting(false);
       setIsStreaming(false);

@@ -130,6 +130,8 @@ export default function ProjectDashboardPage() {
   const isNewProject = chats !== undefined && chats.length === 0;
 
   const handleStartChat = async (type: ChatType) => {
+    // Guard against concurrent calls
+    if (isCreatingChat) return;
     if (!storedUser?._id || !projectId) return;
 
     setIsCreatingChat(type);
@@ -144,11 +146,14 @@ export default function ProjectDashboardPage() {
       router.push(`/dashboard/projects/${projectId}/chat/${chatId}`);
     } catch (error) {
       console.error("Failed to create chat:", error);
+    } finally {
       setIsCreatingChat(null);
     }
   };
 
   const handleCreateCustomChat = async (title: string, systemPrompt: string) => {
+    // Guard against concurrent calls
+    if (isCreatingChat) return;
     if (!storedUser?._id || !projectId) return;
 
     setIsCreatingChat("custom");
@@ -164,6 +169,7 @@ export default function ProjectDashboardPage() {
       router.push(`/dashboard/projects/${projectId}/chat/${chatId}`);
     } catch (error) {
       console.error("Failed to create custom chat:", error);
+    } finally {
       setIsCreatingChat(null);
     }
   };

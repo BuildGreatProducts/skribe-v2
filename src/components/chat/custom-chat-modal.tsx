@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button, Modal, Input, Textarea } from "@/components/ui";
 
 interface CustomChatModalProps {
@@ -19,6 +19,15 @@ export function CustomChatModal({
   const [title, setTitle] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Reset form state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setTitle("");
+      setSystemPrompt("");
+      setError(null);
+    }
+  }, [isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
