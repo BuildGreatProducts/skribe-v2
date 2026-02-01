@@ -268,24 +268,62 @@ When creating or updating documents:
 
             // If the model used a tool, process it and continue
             if (stopReason === "tool_use" && currentToolUse) {
-              const toolInput = JSON.parse(currentToolUse.input);
+              let toolInput: Record<string, unknown>;
               let toolResult: string;
+
+              try {
+                // Parse tool input - handle malformed JSON gracefully
+                toolInput = JSON.parse(currentToolUse.input);
+              } catch (parseError) {
+                toolResult = `Error: Failed to parse tool input - ${parseError instanceof Error ? parseError.message : "Invalid JSON"}`;
+
+                // Add error response and continue
+                currentMessages = [
+                  ...currentMessages,
+                  {
+                    role: "assistant" as const,
+                    content: [
+                      {
+                        type: "tool_use" as const,
+                        id: currentToolUse.id,
+                        name: currentToolUse.name,
+                        input: {},
+                      },
+                    ],
+                  },
+                  {
+                    role: "user" as const,
+                    content: [
+                      {
+                        type: "tool_result" as const,
+                        tool_use_id: currentToolUse.id,
+                        content: toolResult,
+                        is_error: true,
+                      },
+                    ],
+                  },
+                ];
+                currentToolUse = null;
+                continue;
+              }
 
               try {
                 if (currentToolUse.name === "create_document") {
                   // Get appropriate document type
                   const docType =
-                    toolInput.type ||
+                    (toolInput.type as string) ||
                     CHAT_TYPE_TO_DOC_TYPE[chat.type] ||
                     "custom";
+                  const title = toolInput.title as string;
+                  const content = toolInput.content as string;
 
                   // Create the document
                   const documentId = await convex.mutation(
                     api.documents.create,
                     {
                       projectId: projectId as Id<"projects">,
-                      title: toolInput.title,
-                      content: toolInput.content,
+                      title,
+                      content,
                       type: docType as
                         | "prd"
                         | "persona"
@@ -299,20 +337,24 @@ When creating or updating documents:
                     }
                   );
 
-                  toolResult = `Document "${toolInput.title}" created successfully with ID: ${documentId}. The document is now available in the project dashboard.`;
+                  toolResult = `Document "${title}" created successfully with ID: ${documentId}. The document is now available in the project dashboard.`;
 
                   // Send a special marker to the client so it knows a document was created
                   controller.enqueue(
                     encoder.encode(
-                      `\n\n---\n**Document Created:** ${toolInput.title}\n---\n\n`
+                      `\n\n---\n**Document Created:** ${title}\n---\n\n`
                     )
                   );
                 } else if (currentToolUse.name === "update_document") {
+                  const documentIdStr = toolInput.document_id as string;
+                  const title = toolInput.title as string | undefined;
+                  const content = toolInput.content as string;
+
                   // Update the document
                   await convex.mutation(api.documents.update, {
-                    documentId: toolInput.document_id as Id<"documents">,
-                    title: toolInput.title,
-                    content: toolInput.content,
+                    documentId: documentIdStr as Id<"documents">,
+                    title,
+                    content,
                   });
 
                   toolResult = `Document updated successfully.`;
@@ -320,7 +362,7 @@ When creating or updating documents:
                   // Send a special marker to the client
                   controller.enqueue(
                     encoder.encode(
-                      `\n\n---\n**Document Updated:** ${toolInput.title || "Document"}\n---\n\n`
+                      `\n\n---\n**Document Updated:** ${title || "Document"}\n---\n\n`
                     )
                   );
                 } else {

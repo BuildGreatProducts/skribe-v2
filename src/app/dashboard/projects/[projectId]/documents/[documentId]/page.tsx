@@ -294,14 +294,19 @@ function MarkdownRenderer({ content }: { content: string }) {
     // Inline code
     result = result.replace(/`(.*?)`/g, '<code class="rounded bg-muted px-1.5 py-0.5 text-sm font-mono">$1</code>');
 
-    // Unordered lists
-    result = result.replace(/^\s*[-*]\s+(.*$)/gm, '<li class="ml-4">$1</li>');
-    result = result.replace(/(<li.*<\/li>)\n(<li)/g, "$1$2");
-    // Wrap consecutive list items in ul tags
-    result = result.replace(/(<li class="ml-4">[^]*?<\/li>)(?=\s*(?:<li|$))/gm, '<ul class="list-disc pl-6 my-4">$1</ul>');
+    // Unordered lists - use unique class to distinguish from ordered
+    result = result.replace(/^\s*[-*]\s+(.*$)/gm, '<li class="ul-item">$1</li>');
+    // Wrap consecutive unordered list items in ul tags
+    result = result.replace(/(<li class="ul-item">[\s\S]*?<\/li>)(?=\s*(?!<li class="ul-item"))/gm, '<ul class="list-disc pl-6 my-4">$1</ul>');
+    // Clean up ul-item class
+    result = result.replace(/class="ul-item"/g, 'class="ml-4"');
 
-    // Ordered lists
-    result = result.replace(/^\s*\d+\.\s+(.*$)/gm, '<li class="ml-4">$1</li>');
+    // Ordered lists - use unique class to distinguish from unordered
+    result = result.replace(/^\s*\d+\.\s+(.*$)/gm, '<li class="ol-item">$1</li>');
+    // Wrap consecutive ordered list items in ol tags
+    result = result.replace(/(<li class="ol-item">[\s\S]*?<\/li>)(?=\s*(?!<li class="ol-item"))/gm, '<ol class="list-decimal pl-6 my-4">$1</ol>');
+    // Clean up ol-item class
+    result = result.replace(/class="ol-item"/g, 'class="ml-4"');
 
     // Blockquotes
     result = result.replace(/^>\s+(.*$)/gm, '<blockquote class="border-l-4 border-primary pl-4 italic my-4">$1</blockquote>');
@@ -319,6 +324,8 @@ function MarkdownRenderer({ content }: { content: string }) {
     result = result.replace(/(<\/h[1-3]>)<\/p>/g, "$1");
     result = result.replace(/<p class="my-4">(<ul)/g, "$1");
     result = result.replace(/(<\/ul>)<\/p>/g, "$1");
+    result = result.replace(/<p class="my-4">(<ol)/g, "$1");
+    result = result.replace(/(<\/ol>)<\/p>/g, "$1");
     result = result.replace(/<p class="my-4">(<blockquote)/g, "$1");
     result = result.replace(/(<\/blockquote>)<\/p>/g, "$1");
     result = result.replace(/<p class="my-4">(<hr)/g, "$1");
