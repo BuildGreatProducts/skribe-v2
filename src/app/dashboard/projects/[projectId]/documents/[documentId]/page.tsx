@@ -7,7 +7,7 @@ import { Id } from "../../../../../../../convex/_generated/dataModel";
 import { Button, Textarea, Modal } from "@/components/ui";
 import { useStoreUser } from "@/hooks/use-store-user";
 import Link from "next/link";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import DOMPurify from "dompurify";
 
 // Token estimation: ~4 chars per token on average
@@ -30,6 +30,17 @@ export default function DocumentPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [pushResult, setPushResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const pushResultTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (pushResultTimeoutRef.current) {
+        clearTimeout(pushResultTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Fetch document
   const document = useQuery(
@@ -72,6 +83,7 @@ export default function DocumentPage() {
     if (!documentId || !editedContent.trim()) return;
 
     setIsSaving(true);
+    setActionError(null);
     try {
       await updateDocument({
         documentId: documentId as Id<"documents">,
@@ -81,6 +93,9 @@ export default function DocumentPage() {
       setIsEditing(false);
     } catch (error) {
       console.error("Failed to save document:", error);
+      setActionError(
+        error instanceof Error ? error.message : "Failed to save document. Please try again."
+      );
     } finally {
       setIsSaving(false);
     }
@@ -104,6 +119,7 @@ export default function DocumentPage() {
     if (!documentId) return;
 
     setIsDeleting(true);
+    setActionError(null);
     try {
       await deleteDocument({
         documentId: documentId as Id<"documents">,
@@ -111,7 +127,11 @@ export default function DocumentPage() {
       router.push(`/dashboard/projects/${projectId}`);
     } catch (error) {
       console.error("Failed to delete document:", error);
+      setActionError(
+        error instanceof Error ? error.message : "Failed to delete document. Please try again."
+      );
       setIsDeleting(false);
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -152,8 +172,11 @@ export default function DocumentPage() {
       });
     } finally {
       setIsPushing(false);
-      // Auto-hide success message after 5 seconds
-      setTimeout(() => setPushResult(null), 5000);
+      // Auto-hide result message after 5 seconds
+      if (pushResultTimeoutRef.current) {
+        clearTimeout(pushResultTimeoutRef.current);
+      }
+      pushResultTimeoutRef.current = setTimeout(() => setPushResult(null), 5000);
     }
   };
 
@@ -261,6 +284,27 @@ export default function DocumentPage() {
               >
                 {pushResult.message}
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action Error Feedback */}
+      {actionError && (
+        <div className="mx-auto max-w-4xl px-6 pt-4">
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <WarningIcon className="h-5 w-5 text-destructive flex-shrink-0" />
+                <p className="text-sm font-medium text-destructive">{actionError}</p>
+              </div>
+              <button
+                onClick={() => setActionError(null)}
+                className="text-destructive hover:text-destructive/80"
+                aria-label="Dismiss error"
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
             </div>
           </div>
         </div>
@@ -382,15 +426,15 @@ function MarkdownRenderer({ content }: { content: string }) {
 
     // Unordered lists - use unique class to distinguish from ordered
     result = result.replace(/^\s*[-*]\s+(.*$)/gm, '<li class="ul-item">$1</li>');
-    // Wrap consecutive unordered list items in ul tags
-    result = result.replace(/(<li class="ul-item">[\s\S]*?<\/li>)(?=\s*(?!<li class="ul-item"))/gm, '<ul class="list-disc pl-6 my-4">$1</ul>');
+    // Wrap consecutive unordered list items in ul tags (captures all consecutive items)
+    result = result.replace(/(<li class="ul-item">.*?<\/li>\n?)+/g, '<ul class="list-disc pl-6 my-4">$&</ul>');
     // Clean up ul-item class
     result = result.replace(/class="ul-item"/g, 'class="ml-4"');
 
     // Ordered lists - use unique class to distinguish from unordered
     result = result.replace(/^\s*\d+\.\s+(.*$)/gm, '<li class="ol-item">$1</li>');
-    // Wrap consecutive ordered list items in ol tags
-    result = result.replace(/(<li class="ol-item">[\s\S]*?<\/li>)(?=\s*(?!<li class="ol-item"))/gm, '<ol class="list-decimal pl-6 my-4">$1</ol>');
+    // Wrap consecutive ordered list items in ol tags (captures all consecutive items)
+    result = result.replace(/(<li class="ol-item">.*?<\/li>\n?)+/g, '<ol class="list-decimal pl-6 my-4">$&</ol>');
     // Clean up ol-item class
     result = result.replace(/class="ol-item"/g, 'class="ml-4"');
 
@@ -568,6 +612,24 @@ function CheckIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
     >
       <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
     </svg>
   );
 }

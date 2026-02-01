@@ -45,10 +45,16 @@ function verifyWebhookSignature(
     .update(payload)
     .digest("hex");
 
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
+  // Convert to buffers for comparison
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+
+  // Check lengths first - timingSafeEqual throws if lengths differ
+  if (signatureBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(signatureBuffer, expectedBuffer);
 }
 
 // Map Polar product ID to subscription tier

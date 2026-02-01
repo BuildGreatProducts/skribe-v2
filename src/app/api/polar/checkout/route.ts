@@ -25,6 +25,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate app URL
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      console.error("NEXT_PUBLIC_APP_URL is not configured");
+      return NextResponse.json(
+        { error: "App URL not configured" },
+        { status: 500 }
+      );
+    }
+
     // Get product ID based on tier
     const productId =
       tier === "starter"
@@ -47,7 +57,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         product_id: productId,
-        success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?subscription=success`,
+        success_url: `${appUrl}/dashboard?subscription=success`,
         metadata: {
           clerk_id: userId,
         },

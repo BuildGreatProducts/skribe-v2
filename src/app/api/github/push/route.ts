@@ -19,14 +19,20 @@ function generateContentHash(content: string): string {
   return crypto.createHash("sha256").update(content).digest("hex").slice(0, 16);
 }
 
-// Generate a filename from the document title
-function generateFilename(title: string): string {
-  return (
-    title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") + ".md"
-  );
+// Generate a filename from the document title and ID for uniqueness
+function generateFilename(title: string, documentId: string): string {
+  let slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  // Fallback to document ID if title produces empty slug
+  if (!slug) {
+    slug = documentId;
+  }
+
+  // Append document ID for uniqueness
+  return `${slug}-${documentId}.md`;
 }
 
 interface GitHubFileResponse {
@@ -89,13 +95,26 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { projectId, documentIds } = body as {
-      projectId: string;
-      documentIds: string[];
+      projectId: unknown;
+      documentIds: unknown;
     };
 
-    if (!projectId || !documentIds || documentIds.length === 0) {
+    // Validate projectId is a non-empty string
+    if (typeof projectId !== "string" || !projectId.trim()) {
       return NextResponse.json(
-        { error: "Missing projectId or documentIds" },
+        { error: "projectId must be a non-empty string" },
+        { status: 400 }
+      );
+    }
+
+    // Validate documentIds is a non-empty array of strings
+    if (
+      !Array.isArray(documentIds) ||
+      documentIds.length === 0 ||
+      !documentIds.every((id) => typeof id === "string" && id.trim())
+    ) {
+      return NextResponse.json(
+        { error: "documentIds must be a non-empty array of strings" },
         { status: 400 }
       );
     }
@@ -169,7 +188,7 @@ export async function POST(request: NextRequest) {
 
     // Push each document to GitHub
     for (const doc of documentsToPush) {
-      const filename = generateFilename(doc.title);
+      const filename = generateFilename(doc.title, doc._id);
       const filePath = `Skribe/${filename}`;
       const contentHash = generateContentHash(doc.content);
 
@@ -182,6 +201,8 @@ export async function POST(request: NextRequest) {
             headers: {
               Authorization: `Bearer ${accessToken}`,
               Accept: "application/vnd.github+json",
+              "User-Agent": "Skribe-App",
+              "X-GitHub-Api-Version": "2022-11-28",
             },
           }
         );
@@ -205,6 +226,8 @@ export async function POST(request: NextRequest) {
               Authorization: `Bearer ${accessToken}`,
               Accept: "application/vnd.github+json",
               "Content-Type": "application/json",
+              "User-Agent": "Skribe-App",
+              "X-GitHub-Api-Version": "2022-11-28",
             },
             body: JSON.stringify({
               message: commitMessage,
