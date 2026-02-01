@@ -16,6 +16,12 @@ import { useStoreUser } from "@/hooks/use-store-user";
 import Link from "next/link";
 import { useState, useMemo } from "react";
 
+// GitHub push result type
+interface PushResult {
+  success: boolean;
+  message: string;
+}
+
 // Starting points configuration
 const STARTING_POINTS = [
   {
@@ -92,6 +98,8 @@ export default function ProjectDashboardPage() {
   const { user: storedUser, isLoading: isUserLoading } = useStoreUser();
   const [isCreatingChat, setIsCreatingChat] = useState<string | null>(null);
   const [isCustomChatModalOpen, setIsCustomChatModalOpen] = useState(false);
+  const [isPushingAll, setIsPushingAll] = useState(false);
+  const [pushAllResult, setPushAllResult] = useState<PushResult | null>(null);
 
   // Fetch project data
   const project = useQuery(
@@ -128,6 +136,12 @@ export default function ProjectDashboardPage() {
 
   // Check if project is new (no chats yet)
   const isNewProject = chats !== undefined && chats.length === 0;
+
+  // Calculate pending documents count
+  const pendingDocumentsCount = useMemo(() => {
+    if (!documents) return 0;
+    return documents.filter((doc) => doc.syncStatus === "pending").length;
+  }, [documents]);
 
   const handleStartChat = async (type: ChatType) => {
     // Guard against concurrent calls
@@ -171,6 +185,50 @@ export default function ProjectDashboardPage() {
       console.error("Failed to create custom chat:", error);
     } finally {
       setIsCreatingChat(null);
+    }
+  };
+
+  const handlePushAllToGitHub = async () => {
+    if (!documents || documents.length === 0 || isPushingAll || !projectId) return;
+
+    setIsPushingAll(true);
+    setPushAllResult(null);
+
+    try {
+      const documentIds = documents.map((doc) => doc._id);
+
+      const response = await fetch("/api/github/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId,
+          documentIds,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setPushAllResult({
+          success: false,
+          message: data.error || "Failed to push to GitHub",
+        });
+      } else {
+        setPushAllResult({
+          success: data.success,
+          message: data.message,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to push to GitHub:", error);
+      setPushAllResult({
+        success: false,
+        message: "Failed to push to GitHub. Please try again.",
+      });
+    } finally {
+      setIsPushingAll(false);
+      // Auto-hide result after 5 seconds
+      setTimeout(() => setPushAllResult(null), 5000);
     }
   };
 
@@ -360,10 +418,59 @@ export default function ProjectDashboardPage() {
           </div>
 
           {/* Sidebar - Documents */}
-          <aside>
+          <aside className="space-y-4">
+            {/* Push Result Feedback */}
+            {pushAllResult && (
+              <div
+                className={`rounded-xl border p-4 ${
+                  pushAllResult.success
+                    ? "border-success/30 bg-success/10"
+                    : "border-destructive/30 bg-destructive/10"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {pushAllResult.success ? (
+                    <CheckIcon className="h-5 w-5 text-success flex-shrink-0" />
+                  ) : (
+                    <WarningIcon className="h-5 w-5 text-destructive flex-shrink-0" />
+                  )}
+                  <p
+                    className={`text-sm font-medium ${
+                      pushAllResult.success ? "text-success" : "text-destructive"
+                    }`}
+                  >
+                    {pushAllResult.message}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Documents</CardTitle>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Documents</CardTitle>
+                  {project.githubRepoName && documents && documents.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handlePushAllToGitHub}
+                      disabled={isPushingAll}
+                      className="text-xs"
+                    >
+                      {isPushingAll ? (
+                        <div className="h-3 w-3 mr-1 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      ) : (
+                        <GitHubIcon className="h-3 w-3 mr-1" />
+                      )}
+                      Push All
+                    </Button>
+                  )}
+                </div>
+                {project.githubRepoName && pendingDocumentsCount > 0 && (
+                  <p className="text-xs text-warning mt-1">
+                    {pendingDocumentsCount} document{pendingDocumentsCount !== 1 ? "s" : ""} with pending changes
+                  </p>
+                )}
               </CardHeader>
               <CardContent>
                 {documents === undefined ? (
@@ -435,6 +542,25 @@ function CheckIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
     >
       <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function WarningIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
     </svg>
   );
 }
