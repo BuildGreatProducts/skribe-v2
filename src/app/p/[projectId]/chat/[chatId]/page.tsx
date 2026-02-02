@@ -20,6 +20,7 @@ export default function ChatPage() {
   const [inputValue, setInputValue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [awaitingFirstChunk, setAwaitingFirstChunk] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUpdatingChat, setIsUpdatingChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -72,6 +73,7 @@ export default function ChatPage() {
 
       // Create placeholder for assistant message
       setIsStreaming(true);
+      setAwaitingFirstChunk(true);
       assistantMessageId = await createMessage({
         chatId: chatId as Id<"chats">,
         role: "assistant",
@@ -100,12 +102,19 @@ export default function ChatPage() {
       let fullContent = "";
 
       if (reader) {
+        let isFirstChunk = true;
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
           fullContent += chunk;
+
+          // Clear awaiting state on first chunk
+          if (isFirstChunk) {
+            setAwaitingFirstChunk(false);
+            isFirstChunk = false;
+          }
 
           await updateMessage({
             messageId: assistantMessageId,
@@ -137,6 +146,7 @@ export default function ChatPage() {
     } finally {
       setIsSubmitting(false);
       setIsStreaming(false);
+      setAwaitingFirstChunk(false);
       textareaRef.current?.focus();
     }
   };
@@ -239,7 +249,7 @@ export default function ChatPage() {
           )}
 
           {/* Typing indicator */}
-          {isStreaming && chatData.messages[chatData.messages.length - 1]?.content === "" && (
+          {awaitingFirstChunk && (
             <div className="flex items-start gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
                 <span className="text-sm font-medium text-white">S</span>

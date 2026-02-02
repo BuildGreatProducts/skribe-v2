@@ -304,7 +304,7 @@ export const deleteForDowngrade = mutation({
   },
 });
 
-// Get the user's default project (most recently updated) - for redirects
+// Get the user's default project (most recently created) - for redirects
 export const getDefaultProject = query({
   args: {},
   handler: async (ctx) => {

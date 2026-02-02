@@ -55,6 +55,8 @@ export default function NewProjectPage() {
 
   // If user can't create, show the reason
   if (!canCreate?.allowed) {
+    const isNotAuthenticated = canCreate?.reason === "not_authenticated";
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted p-4">
         <Card className="max-w-md w-full">
@@ -70,17 +72,30 @@ export default function NewProjectPage() {
               {canCreate?.reason === "subscription_expired" && "Your subscription has expired."}
               {canCreate?.reason === "project_limit_reached" &&
                 `You've reached your project limit (${canCreate.currentCount}/${canCreate.limit}). Upgrade to Pro for unlimited projects.`}
-              {canCreate?.reason === "not_authenticated" && "Please sign in to create a project."}
+              {isNotAuthenticated && "Please sign in to create a project."}
             </p>
             <div className="flex flex-col gap-3">
-              <Link href="/pricing">
-                <Button className="w-full">Upgrade Plan</Button>
-              </Link>
+              {isNotAuthenticated ? (
+                <Link
+                  href="/sign-in"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+                >
+                  Sign In
+                </Link>
+              ) : (
+                <Link
+                  href="/pricing"
+                  className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+                >
+                  Upgrade Plan
+                </Link>
+              )}
               {projects && projects.length > 0 && (
-                <Link href={`/p/${projects[0]._id}`}>
-                  <Button variant="outline" className="w-full">
-                    Back to Project
-                  </Button>
+                <Link
+                  href={`/p/${projects[0]._id}`}
+                  className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  Back to Project
                 </Link>
               )}
             </div>
@@ -134,10 +149,11 @@ export default function NewProjectPage() {
 
             <div className="flex gap-3 pt-2">
               {projects && projects.length > 0 && (
-                <Link href={`/p/${projects[0]._id}`} className="flex-1">
-                  <Button type="button" variant="outline" className="w-full">
-                    Cancel
-                  </Button>
+                <Link
+                  href={`/p/${projects[0]._id}`}
+                  className="flex-1 inline-flex h-10 items-center justify-center rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  Cancel
                 </Link>
               )}
               <Button

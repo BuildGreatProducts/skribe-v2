@@ -12,6 +12,8 @@ export default function ProjectDashboardRedirect() {
   useEffect(() => {
     if (projectId) {
       router.replace(`/p/${projectId}`);
+    } else {
+      router.replace("/onboarding");
     }
   }, [projectId, router]);
 

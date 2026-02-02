@@ -1,7 +1,7 @@
 "use client";
 
 import { AppShell } from "@/components/layout";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
@@ -15,8 +15,12 @@ export default function ProjectLayout({
 }) {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const projectId = params.projectId as string | undefined;
   const { isLoading: isUserLoading } = useStoreUser();
+
+  // Check if we're on the new project page - skip all redirect logic
+  const isNewProjectPage = pathname === "/p/new";
 
   // Fetch the project to verify it exists and user has access
   const project = useQuery(
@@ -29,6 +33,9 @@ export default function ProjectLayout({
 
   // Handle redirects
   useEffect(() => {
+    // Skip redirect logic for new project page
+    if (isNewProjectPage) return;
+
     // Still loading user
     if (isUserLoading) return;
 
@@ -52,7 +59,12 @@ export default function ProjectLayout({
         router.replace("/onboarding");
       }
     }
-  }, [projectId, project, defaultProject, router, isUserLoading]);
+  }, [projectId, project, defaultProject, router, isUserLoading, isNewProjectPage]);
+
+  // For new project page, just render children (no AppShell needed)
+  if (isNewProjectPage) {
+    return <>{children}</>;
+  }
 
   // Show loading state while checking project access
   if (isUserLoading || project === undefined || (projectId && project === null)) {

@@ -17,6 +17,7 @@ export default function NewChatPage() {
   const { user: storedUser } = useStoreUser();
   const [isCreatingChat, setIsCreatingChat] = useState<string | null>(null);
   const [isCustomChatModalOpen, setIsCustomChatModalOpen] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   // Fetch project data
   const project = useQuery(
@@ -53,6 +54,7 @@ export default function NewChatPage() {
     if (!storedUser?._id || !projectId) return;
 
     setIsCreatingChat(type);
+    setChatError(null);
     try {
       const startingPoint = STARTING_POINTS.find((sp) => sp.id === type);
       const chatId = await createChat({
@@ -64,6 +66,7 @@ export default function NewChatPage() {
       router.push(`/p/${projectId}/chat/${chatId}`);
     } catch (error) {
       console.error("Failed to create chat:", error);
+      setChatError(error instanceof Error ? error.message : "Failed to create chat. Please try again.");
     } finally {
       setIsCreatingChat(null);
     }
@@ -78,6 +81,7 @@ export default function NewChatPage() {
     if (!storedUser?._id || !projectId) return;
 
     setIsCreatingChat("custom");
+    setChatError(null);
     try {
       const chatId = await createChat({
         projectId: projectId as Id<"projects">,
@@ -90,6 +94,7 @@ export default function NewChatPage() {
       router.push(`/p/${projectId}/chat/${chatId}`);
     } catch (error) {
       console.error("Failed to create custom chat:", error);
+      setChatError(error instanceof Error ? error.message : "Failed to create chat. Please try again.");
     } finally {
       setIsCreatingChat(null);
     }
@@ -114,6 +119,22 @@ export default function NewChatPage() {
           Choose a starting point or start an open chat to explore any topic
         </p>
       </div>
+
+      {/* Error Banner */}
+      {chatError && (
+        <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-destructive">{chatError}</p>
+            <button
+              onClick={() => setChatError(null)}
+              className="text-destructive hover:text-destructive/80"
+              aria-label="Dismiss error"
+            >
+              <XIcon className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Starting Points Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -418,4 +439,22 @@ function StartingPointIcon({
   };
 
   return <>{icons[icon] || icons.document}</>;
+}
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
 }

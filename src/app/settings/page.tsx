@@ -13,9 +13,32 @@ export default function SettingsPage() {
   const { user: storedUser, isLoading, clerkUser } = useStoreUser();
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   const [isLoadingCheckout, setIsLoadingCheckout] = useState<string | null>(null);
+  const [isDisconnectingGitHub, setIsDisconnectingGitHub] = useState(false);
 
   // Get default project for back navigation
   const defaultProject = useQuery(api.projects.getDefaultProject);
+
+  const handleDisconnectGitHub = async () => {
+    setIsDisconnectingGitHub(true);
+    try {
+      const response = await fetch("/api/github/disconnect", {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to disconnect GitHub");
+      }
+
+      // Refresh the page to reflect the changes
+      router.refresh();
+    } catch (error) {
+      console.error("GitHub disconnect error:", error);
+      alert("Failed to disconnect GitHub. Please try again.");
+    } finally {
+      setIsDisconnectingGitHub(false);
+    }
+  };
 
   const handleManageBilling = async () => {
     setIsLoadingPortal(true);
@@ -318,7 +341,9 @@ export default function SettingsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => router.push("/api/github/disconnect")}
+                  onClick={handleDisconnectGitHub}
+                  disabled={isDisconnectingGitHub}
+                  isLoading={isDisconnectingGitHub}
                 >
                   Disconnect
                 </Button>
