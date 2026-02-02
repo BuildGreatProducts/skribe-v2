@@ -1,18 +1,18 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
 import { Button, Textarea } from "@/components/ui";
 import { EditChatModal } from "@/components/chat";
 import { useStoreUser } from "@/hooks/use-store-user";
-import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import DOMPurify from "dompurify";
 
 export default function ChatPage() {
   const params = useParams();
+  const router = useRouter();
   const projectId = params.projectId as string;
   const chatId = params.chatId as string;
   useStoreUser(); // Ensure user is synced to Convex
@@ -23,6 +23,7 @@ export default function ChatPage() {
   const [awaitingFirstChunk, setAwaitingFirstChunk] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUpdatingChat, setIsUpdatingChat] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -162,6 +163,7 @@ export default function ChatPage() {
     if (!chatId) return;
 
     setIsUpdatingChat(true);
+    setUpdateError(null);
     try {
       await updateChat({
         chatId: chatId as Id<"chats">,
@@ -171,6 +173,7 @@ export default function ChatPage() {
       setIsEditModalOpen(false);
     } catch (error) {
       console.error("Failed to update chat:", error);
+      setUpdateError(error instanceof Error ? error.message : "Failed to update chat. Please try again.");
     } finally {
       setIsUpdatingChat(false);
     }
@@ -188,9 +191,9 @@ export default function ChatPage() {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
         <h1 className="font-serif text-2xl font-bold">Chat Not Found</h1>
-        <Link href={`/p/${projectId}`}>
-          <Button>Back to Project</Button>
-        </Link>
+        <Button onClick={() => router.push(`/p/${projectId}`)}>
+          Back to Project
+        </Button>
       </div>
     );
   }
@@ -303,11 +306,15 @@ export default function ChatPage() {
       {chatData.type === "custom" && (
         <EditChatModal
           isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setUpdateError(null);
+          }}
           onSubmit={handleUpdateChat}
           isLoading={isUpdatingChat}
           initialTitle={chatData.title}
           initialSystemPrompt={chatData.systemPrompt || ""}
+          externalError={updateError}
         />
       )}
     </div>

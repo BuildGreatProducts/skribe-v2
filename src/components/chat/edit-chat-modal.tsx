@@ -10,6 +10,7 @@ interface EditChatModalProps {
   isLoading?: boolean;
   initialTitle: string;
   initialSystemPrompt: string;
+  externalError?: string | null;
 }
 
 export function EditChatModal({
@@ -19,6 +20,7 @@ export function EditChatModal({
   isLoading = false,
   initialTitle,
   initialSystemPrompt,
+  externalError,
 }: EditChatModalProps) {
   const [title, setTitle] = useState(initialTitle);
   const [systemPrompt, setSystemPrompt] = useState(initialSystemPrompt);
@@ -59,9 +61,9 @@ export function EditChatModal({
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
+        {(error || externalError) && (
           <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">
-            {error}
+            {error || externalError}
           </div>
         )}
 
