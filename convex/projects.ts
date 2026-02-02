@@ -304,6 +304,23 @@ export const deleteForDowngrade = mutation({
   },
 });
 
+// Get the user's default project (most recently updated) - for redirects
+export const getDefaultProject = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    return await ctx.db
+      .query("projects")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .first();
+  },
+});
+
 // Delete a project and all its associated data
 export const remove = mutation({
   args: {

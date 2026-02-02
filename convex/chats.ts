@@ -199,6 +199,32 @@ export const update = mutation({
   },
 });
 
+// Get recent chats for a project (limited for sidebar) - with ownership check
+export const getRecentByProject = query({
+  args: {
+    projectId: v.id("projects"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getAuthenticatedUser(ctx);
+    if (!user) {
+      return [];
+    }
+
+    // Verify project ownership
+    const project = await ctx.db.get(args.projectId);
+    if (!project || project.userId !== user._id) {
+      return [];
+    }
+
+    return await ctx.db
+      .query("chats")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .order("desc")
+      .take(args.limit ?? 10);
+  },
+});
+
 // Delete a chat and its messages
 export const remove = mutation({
   args: { chatId: v.id("chats") },
