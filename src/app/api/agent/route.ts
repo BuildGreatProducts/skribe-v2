@@ -19,6 +19,7 @@ const AGENT_TYPE_TO_DOC_TYPE: Record<string, string> = {
   tech_stack: "tech",
   create_prd: "prd",
   go_to_market: "gtm",
+  landing_page: "landing",
   custom: "custom",
 };
 
@@ -52,6 +53,7 @@ const DOCUMENT_TOOLS: Anthropic.Tool[] = [
             "feature",
             "tech",
             "gtm",
+            "landing",
             "custom",
           ],
           description: "The type of document being created",
@@ -333,6 +335,7 @@ When creating or updating documents:
                         | "feature"
                         | "tech"
                         | "gtm"
+                        | "landing"
                         | "custom",
                     }
                   );
