@@ -10,7 +10,7 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 // Document type mapping from agent type to document type
 const AGENT_TYPE_TO_DOC_TYPE: Record<string, string> = {
-  product_refinement: "prd",
+  idea_refinement: "prd",
   market_validation: "market",
   customer_persona: "persona",
   brand_strategy: "brand",

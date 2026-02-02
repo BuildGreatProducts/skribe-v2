@@ -1,21 +1,43 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 
+/**
+ * Helper to get authenticated user from context.
+ * Returns the user record or null if not authenticated.
+ */
+async function getAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    return null;
+  }
+
+  // Look up user by Clerk ID
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .unique();
+
+  return user;
+}
+
 // Debug query to test if Clerk authentication is working with Convex
+// Requires authentication and returns only non-sensitive info
 export const debugAuth = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
+    const user = await getAuthenticatedUser(ctx);
+
+    if (!user) {
+      return {
+        authenticated: false,
+        userId: null,
+        timestamp: Date.now(),
+      };
+    }
+
     return {
-      hasIdentity: identity !== null,
-      identity: identity
-        ? {
-            subject: identity.subject,
-            issuer: identity.issuer,
-            email: identity.email,
-            tokenIdentifier: identity.tokenIdentifier,
-          }
-        : null,
+      authenticated: true,
+      userId: user._id,
       timestamp: Date.now(),
     };
   },

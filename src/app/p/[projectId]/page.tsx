@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id, Doc } from "../../../../convex/_generated/dataModel";
 import { Card, CardContent } from "@/components/ui";
-import { CustomAgentModal, CreateTemplateModal, EditTemplateModal } from "@/components/agent";
+import { CustomAgentModal, CreateTemplateModal, EditTemplateModal } from "@/components/chat/agent";
 import { useStoreUser } from "@/hooks/use-store-user";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { STARTING_POINTS, AgentType } from "@/lib/starting-points";

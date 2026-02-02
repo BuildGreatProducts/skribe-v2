@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
 import { Button, Textarea } from "@/components/ui";
-import { EditAgentModal } from "@/components/agent";
+import { EditAgentModal } from "@/components/chat/agent";
 import { useStoreUser } from "@/hooks/use-store-user";
 import { useState, useRef, useEffect } from "react";
 import DOMPurify from "dompurify";

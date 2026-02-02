@@ -77,7 +77,7 @@ export default defineSchema({
   agents: defineTable({
     projectId: v.id("projects"),
     type: v.union(
-      v.literal("product_refinement"),
+      v.literal("idea_refinement"),
       v.literal("market_validation"),
       v.literal("brand_strategy"),
       v.literal("customer_persona"),

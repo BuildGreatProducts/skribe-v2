@@ -1,9 +1,9 @@
 // Starting points configuration - shared across the app
 export const STARTING_POINTS = [
   {
-    id: "product_refinement",
-    title: "Product Refinement",
-    description: "Clarify your product vision and value proposition",
+    id: "idea_refinement",
+    title: "Idea Refinement",
+    description: "Clarify your idea and value proposition",
     icon: "lightbulb",
     order: 1,
   },
