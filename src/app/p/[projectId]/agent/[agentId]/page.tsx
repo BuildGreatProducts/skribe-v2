@@ -5,32 +5,32 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
 import { Button, Textarea } from "@/components/ui";
-import { EditChatModal } from "@/components/chat";
+import { EditAgentModal } from "@/components/agent";
 import { useStoreUser } from "@/hooks/use-store-user";
 import { useState, useRef, useEffect } from "react";
 import DOMPurify from "dompurify";
 
-export default function ChatPage() {
+export default function AgentPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = params.projectId as string;
-  const chatId = params.chatId as string;
+  const agentId = params.agentId as string;
   useStoreUser(); // Ensure user is synced to Convex
 
   const [inputValue, setInputValue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [, setIsStreaming] = useState(false);
   const [awaitingFirstChunk, setAwaitingFirstChunk] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isUpdatingChat, setIsUpdatingChat] = useState(false);
+  const [isUpdatingAgent, setIsUpdatingAgent] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Fetch chat with messages
-  const chatData = useQuery(
-    api.chats.getWithMessages,
-    chatId ? { chatId: chatId as Id<"chats"> } : "skip"
+  // Fetch agent with messages
+  const agentData = useQuery(
+    api.agents.getWithMessages,
+    agentId ? { agentId: agentId as Id<"agents"> } : "skip"
   );
 
   // Fetch project for breadcrumb
@@ -42,12 +42,12 @@ export default function ChatPage() {
   // Mutations
   const createMessage = useMutation(api.messages.create);
   const updateMessage = useMutation(api.messages.update);
-  const updateChat = useMutation(api.chats.update);
+  const updateAgent = useMutation(api.agents.update);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatData?.messages]);
+  }, [agentData?.messages]);
 
   // Focus textarea on load
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function ChatPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isSubmitting || !chatId) return;
+    if (!inputValue.trim() || isSubmitting || !agentId) return;
 
     const userMessage = inputValue.trim();
     setInputValue("");
@@ -67,7 +67,7 @@ export default function ChatPage() {
     try {
       // Create user message
       await createMessage({
-        chatId: chatId as Id<"chats">,
+        agentId: agentId as Id<"agents">,
         role: "user",
         content: userMessage,
       });
@@ -76,17 +76,17 @@ export default function ChatPage() {
       setIsStreaming(true);
       setAwaitingFirstChunk(true);
       assistantMessageId = await createMessage({
-        chatId: chatId as Id<"chats">,
+        agentId: agentId as Id<"agents">,
         role: "assistant",
         content: "",
       });
 
       // Call the AI API
-      const response = await fetch("/api/chat", {
+      const response = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          chatId,
+          agentId,
           projectId,
           message: userMessage,
         }),
@@ -159,27 +159,27 @@ export default function ChatPage() {
     }
   };
 
-  const handleUpdateChat = async (title: string, systemPrompt: string) => {
-    if (!chatId) return;
+  const handleUpdateAgent = async (title: string, systemPrompt: string) => {
+    if (!agentId) return;
 
-    setIsUpdatingChat(true);
+    setIsUpdatingAgent(true);
     setUpdateError(null);
     try {
-      await updateChat({
-        chatId: chatId as Id<"chats">,
+      await updateAgent({
+        agentId: agentId as Id<"agents">,
         title,
         systemPrompt: systemPrompt || undefined,
       });
       setIsEditModalOpen(false);
     } catch (error) {
-      console.error("Failed to update chat:", error);
-      setUpdateError(error instanceof Error ? error.message : "Failed to update chat. Please try again.");
+      console.error("Failed to update agent:", error);
+      setUpdateError(error instanceof Error ? error.message : "Failed to update agent. Please try again.");
     } finally {
-      setIsUpdatingChat(false);
+      setIsUpdatingAgent(false);
     }
   };
 
-  if (chatData === undefined || project === undefined) {
+  if (agentData === undefined || project === undefined) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
@@ -187,10 +187,10 @@ export default function ChatPage() {
     );
   }
 
-  if (!chatData) {
+  if (!agentData) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
-        <h1 className="font-serif text-2xl font-bold">Chat Not Found</h1>
+        <h1 className="font-serif text-2xl font-bold">Agent Not Found</h1>
         <Button onClick={() => router.push(`/p/${projectId}`)}>
           Back to Project
         </Button>
@@ -205,7 +205,7 @@ export default function ChatPage() {
         <div className="flex items-center gap-4">
           <div className="flex-1 min-w-0">
             <h1 className="font-serif text-xl font-semibold truncate">
-              {chatData.title}
+              {agentData.title}
             </h1>
             <p className="text-sm text-muted-foreground truncate">
               {project?.name}
@@ -213,13 +213,13 @@ export default function ChatPage() {
           </div>
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-primary-light px-3 py-1 text-xs font-medium text-primary">
-              {chatData.type.replace(/_/g, " ")}
+              {agentData.type.replace(/_/g, " ")}
             </span>
-            {chatData.type === "custom" && (
+            {agentData.type === "custom" && (
               <button
                 onClick={() => setIsEditModalOpen(true)}
                 className="rounded-lg p-2 hover:bg-muted transition-colors"
-                aria-label="Edit chat settings"
+                aria-label="Edit agent settings"
               >
                 <SettingsIcon className="h-5 w-5 text-muted-foreground" />
               </button>
@@ -231,22 +231,22 @@ export default function ChatPage() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-8">
         <div className="mx-auto max-w-3xl space-y-6">
-          {chatData.messages.length === 0 ? (
+          {agentData.messages.length === 0 ? (
             <div className="text-center py-12">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-light">
-                <ChatIcon className="h-8 w-8 text-primary" />
+                <AgentIcon className="h-8 w-8 text-primary" />
               </div>
               <h2 className="font-serif text-xl font-semibold mb-2">
                 Start the conversation
               </h2>
               <p className="text-muted-foreground max-w-md mx-auto">
-                {chatData.type === "custom"
+                {agentData.type === "custom"
                   ? "Ask me anything about your project. I have access to all your project documents."
-                  : `I'm ready to help you with ${chatData.title.toLowerCase()}. What would you like to explore?`}
+                  : `I'm ready to help you with ${agentData.title.toLowerCase()}. What would you like to explore?`}
               </p>
             </div>
           ) : (
-            chatData.messages.map((message) => (
+            agentData.messages.map((message) => (
               <MessageBubble key={message._id} message={message} />
             ))
           )}
@@ -302,18 +302,18 @@ export default function ChatPage() {
         </p>
       </div>
 
-      {/* Edit Chat Modal */}
-      {chatData.type === "custom" && (
-        <EditChatModal
+      {/* Edit Agent Modal */}
+      {agentData.type === "custom" && (
+        <EditAgentModal
           isOpen={isEditModalOpen}
           onClose={() => {
             setIsEditModalOpen(false);
             setUpdateError(null);
           }}
-          onSubmit={handleUpdateChat}
-          isLoading={isUpdatingChat}
-          initialTitle={chatData.title}
-          initialSystemPrompt={chatData.systemPrompt || ""}
+          onSubmit={handleUpdateAgent}
+          isLoading={isUpdatingAgent}
+          initialTitle={agentData.title}
+          initialSystemPrompt={agentData.systemPrompt || ""}
           externalError={updateError}
         />
       )}
@@ -465,7 +465,7 @@ function SendIcon({ className }: { className?: string }) {
   );
 }
 
-function ChatIcon({ className }: { className?: string }) {
+function AgentIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}

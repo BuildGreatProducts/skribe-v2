@@ -3,18 +3,18 @@
 import { useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 
-// Legacy chat redirect - redirects to new /p/[projectId]/chat/[chatId] route
-export default function ChatRedirect() {
+// Legacy agent redirect - redirects to new /p/[projectId]/agent/[agentId] route
+export default function AgentRedirect() {
   const router = useRouter();
   const params = useParams();
   const projectId = params.projectId as string;
-  const chatId = params.chatId as string;
+  const agentId = params.agentId as string;
 
   useEffect(() => {
-    if (projectId && chatId) {
-      router.replace(`/p/${projectId}/chat/${chatId}`);
+    if (projectId && agentId) {
+      router.replace(`/p/${projectId}/agent/${agentId}`);
     }
-  }, [projectId, chatId, router]);
+  }, [projectId, agentId, router]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted">

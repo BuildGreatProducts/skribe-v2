@@ -3,21 +3,25 @@
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { Id, Doc } from "../../../../convex/_generated/dataModel";
 import { Card, CardContent } from "@/components/ui";
-import { CustomChatModal } from "@/components/chat";
+import { CustomAgentModal, CreateTemplateModal, EditTemplateModal } from "@/components/agent";
 import { useStoreUser } from "@/hooks/use-store-user";
-import { useState, useMemo } from "react";
-import { STARTING_POINTS, ChatType } from "@/lib/starting-points";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { STARTING_POINTS, AgentType } from "@/lib/starting-points";
 
-export default function NewChatPage() {
+export default function NewAgentPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = params.projectId as string;
   const { user: storedUser } = useStoreUser();
-  const [isCreatingChat, setIsCreatingChat] = useState<string | null>(null);
-  const [isCustomChatModalOpen, setIsCustomChatModalOpen] = useState(false);
-  const [chatError, setChatError] = useState<string | null>(null);
+  const [isCreatingAgent, setIsCreatingAgent] = useState<string | null>(null);
+  const [isCustomAgentModalOpen, setIsCustomAgentModalOpen] = useState(false);
+  const [isCreateTemplateModalOpen, setIsCreateTemplateModalOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<Doc<"agentTemplates"> | null>(null);
+  const [agentError, setAgentError] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Fetch project data
   const project = useQuery(
@@ -25,78 +29,159 @@ export default function NewChatPage() {
     projectId ? { projectId: projectId as Id<"projects"> } : "skip"
   );
 
-  // Fetch project chats to know which starting points are completed
-  const chats = useQuery(
-    api.chats.getByProject,
+  // Fetch project agents to know which starting points are completed
+  const agents = useQuery(
+    api.agents.getByProject,
     projectId ? { projectId: projectId as Id<"projects"> } : "skip"
   );
 
-  // Create chat mutation
-  const createChat = useMutation(api.chats.create);
+  // Fetch user's templates
+  const templates = useQuery(api.agentTemplates.getByUser);
 
-  // Calculate which starting points have been completed (have chats)
+  // Create agent mutation
+  const createAgent = useMutation(api.agents.create);
+
+  // Template mutations
+  const createTemplate = useMutation(api.agentTemplates.create);
+  const updateTemplate = useMutation(api.agentTemplates.update);
+  const deleteTemplate = useMutation(api.agentTemplates.remove);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Calculate which starting points have been completed (have agents)
   const completedStartingPoints = useMemo(() => {
-    if (!chats) return new Set<string>();
+    if (!agents) return new Set<string>();
     const completedTypes = new Set<string>();
-    for (const chat of chats) {
-      if (chat.type !== "custom") {
-        completedTypes.add(chat.type);
+    for (const agent of agents) {
+      if (agent.type !== "custom") {
+        completedTypes.add(agent.type);
       }
     }
     return completedTypes;
-  }, [chats]);
+  }, [agents]);
 
-  // Check if project is new (no chats yet)
-  const isNewProject = chats !== undefined && chats.length === 0;
+  // Check if project is new (no agents yet)
+  const isNewProject = agents !== undefined && agents.length === 0;
 
-  const handleStartChat = async (type: ChatType) => {
-    if (isCreatingChat) return;
+  const handleStartAgent = async (type: AgentType) => {
+    if (isCreatingAgent) return;
     if (!storedUser?._id || !projectId) return;
 
-    setIsCreatingChat(type);
-    setChatError(null);
+    setIsCreatingAgent(type);
+    setAgentError(null);
     try {
       const startingPoint = STARTING_POINTS.find((sp) => sp.id === type);
-      const chatId = await createChat({
+      const agentId = await createAgent({
         projectId: projectId as Id<"projects">,
         type,
-        title: startingPoint?.title ?? "Custom Chat",
+        title: startingPoint?.title ?? "Custom Agent",
       });
 
-      router.push(`/p/${projectId}/chat/${chatId}`);
+      router.push(`/p/${projectId}/agent/${agentId}`);
     } catch (error) {
-      console.error("Failed to create chat:", error);
-      setChatError(error instanceof Error ? error.message : "Failed to create chat. Please try again.");
+      console.error("Failed to create agent:", error);
+      setAgentError(error instanceof Error ? error.message : "Failed to create agent. Please try again.");
     } finally {
-      setIsCreatingChat(null);
+      setIsCreatingAgent(null);
     }
   };
 
-  const handleOpenChat = () => {
-    setIsCustomChatModalOpen(true);
+  const handleOpenAgent = () => {
+    setIsCustomAgentModalOpen(true);
   };
 
-  const handleCreateCustomChat = async (title: string, systemPrompt: string) => {
-    if (isCreatingChat) return;
+  const handleCreateCustomAgent = async (title: string, systemPrompt: string) => {
+    if (isCreatingAgent) return;
     if (!storedUser?._id || !projectId) return;
 
-    setIsCreatingChat("custom");
-    setChatError(null);
+    setIsCreatingAgent("custom");
+    setAgentError(null);
     try {
-      const chatId = await createChat({
+      const agentId = await createAgent({
         projectId: projectId as Id<"projects">,
         type: "custom",
-        title: title || "Open Chat",
+        title: title || "Open Agent",
         systemPrompt: systemPrompt || undefined,
       });
 
-      setIsCustomChatModalOpen(false);
-      router.push(`/p/${projectId}/chat/${chatId}`);
+      setIsCustomAgentModalOpen(false);
+      router.push(`/p/${projectId}/agent/${agentId}`);
     } catch (error) {
-      console.error("Failed to create custom chat:", error);
-      setChatError(error instanceof Error ? error.message : "Failed to create chat. Please try again.");
+      console.error("Failed to create custom agent:", error);
+      setAgentError(error instanceof Error ? error.message : "Failed to create agent. Please try again.");
     } finally {
-      setIsCreatingChat(null);
+      setIsCreatingAgent(null);
+    }
+  };
+
+  const handleCreateTemplate = async (name: string, description: string, systemPrompt: string) => {
+    setAgentError(null);
+    try {
+      await createTemplate({ name, description: description || undefined, systemPrompt });
+      setIsCreateTemplateModalOpen(false);
+    } catch (error) {
+      console.error("Failed to create template:", error);
+      setAgentError(error instanceof Error ? error.message : "Failed to create template. Please try again.");
+    }
+  };
+
+  const handleEditTemplate = async (name: string, description: string, systemPrompt: string) => {
+    if (!editingTemplate) return;
+    setAgentError(null);
+    try {
+      await updateTemplate({
+        templateId: editingTemplate._id,
+        name,
+        description: description || undefined,
+        systemPrompt,
+      });
+      setEditingTemplate(null);
+    } catch (error) {
+      console.error("Failed to update template:", error);
+      setAgentError(error instanceof Error ? error.message : "Failed to update template. Please try again.");
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId: Id<"agentTemplates">) => {
+    setAgentError(null);
+    setOpenMenuId(null);
+    try {
+      await deleteTemplate({ templateId });
+    } catch (error) {
+      console.error("Failed to delete template:", error);
+      setAgentError(error instanceof Error ? error.message : "Failed to delete template. Please try again.");
+    }
+  };
+
+  const handleUseTemplate = async (template: Doc<"agentTemplates">) => {
+    if (isCreatingAgent) return;
+    if (!storedUser?._id || !projectId) return;
+
+    setIsCreatingAgent(`template-${template._id}`);
+    setAgentError(null);
+    try {
+      const agentId = await createAgent({
+        projectId: projectId as Id<"projects">,
+        type: "custom",
+        title: template.name,
+        systemPrompt: template.systemPrompt,
+      });
+
+      router.push(`/p/${projectId}/agent/${agentId}`);
+    } catch (error) {
+      console.error("Failed to create agent from template:", error);
+      setAgentError(error instanceof Error ? error.message : "Failed to start conversation. Please try again.");
+    } finally {
+      setIsCreatingAgent(null);
     }
   };
 
@@ -116,17 +201,17 @@ export default function NewChatPage() {
           Start a new conversation
         </h1>
         <p className="mt-1 text-muted-foreground">
-          Choose a starting point or start an open chat to explore any topic
+          Choose a starting point or start an open conversation to explore any topic
         </p>
       </div>
 
       {/* Error Banner */}
-      {chatError && (
+      {agentError && (
         <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 p-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-destructive">{chatError}</p>
+            <p className="text-sm font-medium text-destructive">{agentError}</p>
             <button
-              onClick={() => setChatError(null)}
+              onClick={() => setAgentError(null)}
               className="text-destructive hover:text-destructive/80"
               aria-label="Dismiss error"
             >
@@ -147,17 +232,17 @@ export default function NewChatPage() {
               key={point.id}
               role="button"
               tabIndex={0}
-              aria-label={`Start ${point.title} chat${isCompleted ? " (completed)" : ""}${isRecommended ? " (recommended)" : ""}`}
+              aria-label={`Start ${point.title} agent${isCompleted ? " (completed)" : ""}${isRecommended ? " (recommended)" : ""}`}
               className={`cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
                 isCompleted ? "bg-success/5 border-success/30" : ""
               } ${isRecommended ? "ring-2 ring-primary ring-offset-2" : ""}`}
-              onClick={() => handleStartChat(point.id)}
+              onClick={() => handleStartAgent(point.id)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   if (e.key === " ") {
                     e.preventDefault();
                   }
-                  handleStartChat(point.id);
+                  handleStartAgent(point.id);
                 }
               }}
             >
@@ -192,7 +277,7 @@ export default function NewChatPage() {
                       {point.description}
                     </p>
                   </div>
-                  {isCreatingChat === point.id && (
+                  {isCreatingAgent === point.id && (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
                   )}
                 </div>
@@ -201,19 +286,99 @@ export default function NewChatPage() {
           );
         })}
 
-        {/* Open Chat Card */}
+        {/* User's Custom Templates */}
+        {templates?.map((template) => (
+          <Card
+            key={template._id}
+            role="button"
+            tabIndex={0}
+            aria-label={`Use ${template.name} template`}
+            className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 relative group"
+            onClick={() => handleUseTemplate(template)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                if (e.key === " ") {
+                  e.preventDefault();
+                }
+                handleUseTemplate(template);
+              }
+            }}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/20">
+                  <StartingPointIcon icon="sparkles" className="h-5 w-5 text-secondary-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium text-foreground">
+                      {template.name}
+                    </h3>
+                    <span className="rounded-full bg-secondary/30 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                      Template
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                    {template.description || "Custom agent template"}
+                  </p>
+                </div>
+                {isCreatingAgent === `template-${template._id}` && (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+                )}
+              </div>
+              {/* Three-dot menu */}
+              <div className="absolute top-2 right-2" ref={openMenuId === template._id ? menuRef : null}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuId(openMenuId === template._id ? null : template._id);
+                  }}
+                  className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
+                  aria-label="Template options"
+                >
+                  <MoreVerticalIcon className="h-4 w-4 text-muted-foreground" />
+                </button>
+                {openMenuId === template._id && (
+                  <div className="absolute right-0 top-8 z-10 w-32 rounded-lg border bg-white shadow-lg">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(null);
+                        setEditingTemplate(template);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-muted rounded-t-lg"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteTemplate(template._id);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10 rounded-b-lg"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {/* Open Agent Card */}
         <Card
           role="button"
           tabIndex={0}
-          aria-label="Start an open chat"
+          aria-label="Start an open conversation"
           className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 border-dashed"
-          onClick={handleOpenChat}
+          onClick={handleOpenAgent}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               if (e.key === " ") {
                 e.preventDefault();
               }
-              handleOpenChat();
+              handleOpenAgent();
             }
           }}
         >
@@ -223,25 +388,73 @@ export default function NewChatPage() {
                 <MessageCircleIcon className="h-5 w-5 text-muted-foreground" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-foreground">Open Chat</h3>
+                <h3 className="font-medium text-foreground">Open Conversation</h3>
                 <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                   Start a freeform conversation without a specific template
                 </p>
               </div>
-              {isCreatingChat === "custom" && (
+              {isCreatingAgent === "custom" && (
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
               )}
             </div>
           </CardContent>
         </Card>
+
+        {/* Create Template Card */}
+        <Card
+          role="button"
+          tabIndex={0}
+          aria-label="Create a new template"
+          className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 border-dashed"
+          onClick={() => setIsCreateTemplateModalOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              if (e.key === " ") {
+                e.preventDefault();
+              }
+              setIsCreateTemplateModalOpen(true);
+            }
+          }}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+                <PlusIcon className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium text-foreground">Create Template</h3>
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                  Save a custom workflow as a reusable template
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Custom Chat Modal */}
-      <CustomChatModal
-        isOpen={isCustomChatModalOpen}
-        onClose={() => setIsCustomChatModalOpen(false)}
-        onSubmit={handleCreateCustomChat}
-        isLoading={isCreatingChat === "custom"}
+      {/* Custom Agent Modal */}
+      <CustomAgentModal
+        isOpen={isCustomAgentModalOpen}
+        onClose={() => setIsCustomAgentModalOpen(false)}
+        onSubmit={handleCreateCustomAgent}
+        isLoading={isCreatingAgent === "custom"}
+      />
+
+      {/* Create Template Modal */}
+      <CreateTemplateModal
+        isOpen={isCreateTemplateModalOpen}
+        onClose={() => setIsCreateTemplateModalOpen(false)}
+        onSubmit={handleCreateTemplate}
+      />
+
+      {/* Edit Template Modal */}
+      <EditTemplateModal
+        isOpen={!!editingTemplate}
+        onClose={() => setEditingTemplate(null)}
+        onSubmit={handleEditTemplate}
+        initialName={editingTemplate?.name ?? ""}
+        initialDescription={editingTemplate?.description ?? ""}
+        initialSystemPrompt={editingTemplate?.systemPrompt ?? ""}
       />
     </div>
   );
@@ -455,6 +668,43 @@ function XIcon({ className }: { className?: string }) {
     >
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
+    </svg>
+  );
+}
+
+function MoreVerticalIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="19" r="1" />
     </svg>
   );
 }

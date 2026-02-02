@@ -8,8 +8,8 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
-// Document type mapping from chat type to document type
-const CHAT_TYPE_TO_DOC_TYPE: Record<string, string> = {
+// Document type mapping from agent type to document type
+const AGENT_TYPE_TO_DOC_TYPE: Record<string, string> = {
   product_refinement: "prd",
   market_validation: "market",
   customer_persona: "persona",
@@ -94,11 +94,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { chatId, projectId, message } = body;
+    const { agentId, projectId, message } = body;
 
-    if (!chatId || !projectId || !message) {
+    if (!agentId || !projectId || !message) {
       return NextResponse.json(
-        { error: "Missing required fields: chatId, projectId, message" },
+        { error: "Missing required fields: agentId, projectId, message" },
         { status: 400 }
       );
     }
@@ -124,22 +124,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify chat belongs to project and user has access
-    const chat = await convex.query(api.chats.getById, {
-      chatId: chatId as Id<"chats">,
+    // Verify agent belongs to project and user has access
+    const agent = await convex.query(api.agents.getById, {
+      agentId: agentId as Id<"agents">,
     });
 
-    if (!chat) {
+    if (!agent) {
       return NextResponse.json(
-        { error: "Forbidden: Chat not found or you do not have access" },
+        { error: "Forbidden: Agent not found or you do not have access" },
         { status: 403 }
       );
     }
 
-    // Verify chat belongs to the specified project
-    if (chat.projectId !== projectId) {
+    // Verify agent belongs to the specified project
+    if (agent.projectId !== projectId) {
       return NextResponse.json(
-        { error: "Forbidden: Chat does not belong to this project" },
+        { error: "Forbidden: Agent does not belong to this project" },
         { status: 403 }
       );
     }
@@ -154,14 +154,14 @@ export async function POST(request: NextRequest) {
       projectId: projectId as Id<"projects">,
     });
 
-    // Get chat history (already ownership-checked)
-    const messages = await convex.query(api.messages.getByChat, {
-      chatId: chatId as Id<"chats">,
+    // Get agent history (already ownership-checked)
+    const messages = await convex.query(api.messages.getByAgent, {
+      agentId: agentId as Id<"agents">,
     });
 
     // Build system prompt with document context and tool instructions
     const baseSystemPrompt =
-      chat.systemPrompt || buildSystemPrompt(chat.type, documents);
+      agent.systemPrompt || buildSystemPrompt(agent.type, documents);
     const toolInstructions = `
 
 ## Available Tools
@@ -312,7 +312,7 @@ When creating or updating documents:
                   // Get appropriate document type
                   const docType =
                     (toolInput.type as string) ||
-                    CHAT_TYPE_TO_DOC_TYPE[chat.type] ||
+                    AGENT_TYPE_TO_DOC_TYPE[agent.type] ||
                     "custom";
                   const title = toolInput.title as string;
                   const content = toolInput.content as string;
@@ -422,7 +422,7 @@ When creating or updating documents:
       },
     });
   } catch (error) {
-    console.error("Chat API error:", error);
+    console.error("Agent API error:", error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Internal server error",

@@ -74,7 +74,7 @@ export default defineSchema({
     .index("by_project", ["projectId"])
     .index("by_type", ["projectId", "type"]),
 
-  chats: defineTable({
+  agents: defineTable({
     projectId: v.id("projects"),
     type: v.union(
       v.literal("product_refinement"),
@@ -97,9 +97,18 @@ export default defineSchema({
     .index("by_type", ["projectId", "type"]),
 
   messages: defineTable({
-    chatId: v.id("chats"),
+    agentId: v.id("agents"),
     role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
     content: v.string(),
     createdAt: v.number(),
-  }).index("by_chat", ["chatId"]),
+  }).index("by_agent", ["agentId"]),
+
+  agentTemplates: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    systemPrompt: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
 });

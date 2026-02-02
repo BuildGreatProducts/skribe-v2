@@ -312,7 +312,7 @@ export default function SettingsPage() {
                 <PlanFeature included={true} feature="GitHub sync" />
                 <PlanFeature
                   included={subscriptionTier === "pro"}
-                  feature="Unlimited chat history"
+                  feature="Unlimited conversation history"
                 />
               </ul>
             </div>

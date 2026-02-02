@@ -1,6 +1,26 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+// Debug query to test if Clerk authentication is working with Convex
+export const debugAuth = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    return {
+      hasIdentity: identity !== null,
+      identity: identity
+        ? {
+            subject: identity.subject,
+            issuer: identity.issuer,
+            email: identity.email,
+            tokenIdentifier: identity.tokenIdentifier,
+          }
+        : null,
+      timestamp: Date.now(),
+    };
+  },
+});
+
 // Get user by Clerk ID
 export const getByClerkId = query({
   args: { clerkId: v.string() },

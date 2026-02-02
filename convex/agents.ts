@@ -2,8 +2,8 @@ import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 
-// Chat types that match the schema
-const chatTypes = v.union(
+// Agent types that match the schema
+const agentTypes = v.union(
   v.literal("product_refinement"),
   v.literal("market_validation"),
   v.literal("brand_strategy"),
@@ -62,7 +62,7 @@ async function verifyProjectOwnership(
   return project;
 }
 
-// Get all chats for a project (with ownership check)
+// Get all agents for a project (with ownership check)
 export const getByProject = query({
   args: { projectId: v.id("projects") },
   handler: async (ctx, args) => {
@@ -78,72 +78,72 @@ export const getByProject = query({
     }
 
     return await ctx.db
-      .query("chats")
+      .query("agents")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .order("desc")
       .collect();
   },
 });
 
-// Get a single chat by ID (with ownership check)
+// Get a single agent by ID (with ownership check)
 export const getById = query({
-  args: { chatId: v.id("chats") },
+  args: { agentId: v.id("agents") },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx);
     if (!user) {
       return null;
     }
 
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat) {
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) {
       return null;
     }
 
     // Verify project ownership
-    const project = await ctx.db.get(chat.projectId);
+    const project = await ctx.db.get(agent.projectId);
     if (!project || project.userId !== user._id) {
       return null;
     }
 
-    return chat;
+    return agent;
   },
 });
 
-// Get chat with its messages (with ownership check)
+// Get agent with its messages (with ownership check)
 export const getWithMessages = query({
-  args: { chatId: v.id("chats") },
+  args: { agentId: v.id("agents") },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx);
     if (!user) {
       return null;
     }
 
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat) {
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) {
       return null;
     }
 
     // Verify project ownership
-    const project = await ctx.db.get(chat.projectId);
+    const project = await ctx.db.get(agent.projectId);
     if (!project || project.userId !== user._id) {
       return null;
     }
 
     const messages = await ctx.db
       .query("messages")
-      .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
+      .withIndex("by_agent", (q) => q.eq("agentId", args.agentId))
       .order("asc")
       .collect();
 
-    return { ...chat, messages };
+    return { ...agent, messages };
   },
 });
 
-// Create a new chat
+// Create a new agent
 export const create = mutation({
   args: {
     projectId: v.id("projects"),
-    type: chatTypes,
+    type: agentTypes,
     title: v.string(),
     systemPrompt: v.optional(v.string()),
   },
@@ -155,7 +155,7 @@ export const create = mutation({
 
     const now = Date.now();
 
-    const chatId = await ctx.db.insert("chats", {
+    const agentId = await ctx.db.insert("agents", {
       projectId: args.projectId,
       type: args.type,
       title: args.title,
@@ -164,42 +164,42 @@ export const create = mutation({
       updatedAt: now,
     });
 
-    return chatId;
+    return agentId;
   },
 });
 
-// Update chat title or system prompt
+// Update agent title or system prompt
 export const update = mutation({
   args: {
-    chatId: v.id("chats"),
+    agentId: v.id("agents"),
     title: v.optional(v.string()),
     systemPrompt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
-    const { chatId, ...updates } = args;
+    const { agentId, ...updates } = args;
 
-    const chat = await ctx.db.get(chatId);
-    if (!chat) {
-      throw new Error("Chat not found");
+    const agent = await ctx.db.get(agentId);
+    if (!agent) {
+      throw new Error("Agent not found");
     }
 
     // Verify project ownership
-    await verifyProjectOwnership(ctx, chat.projectId, user._id);
+    await verifyProjectOwnership(ctx, agent.projectId, user._id);
 
     // Filter out undefined values
     const filteredUpdates = Object.fromEntries(
       Object.entries(updates).filter(([, value]) => value !== undefined)
     );
 
-    await ctx.db.patch(chatId, {
+    await ctx.db.patch(agentId, {
       ...filteredUpdates,
       updatedAt: Date.now(),
     });
   },
 });
 
-// Get recent chats for a project (limited for sidebar) - with ownership check
+// Get recent agents for a project (limited for sidebar) - with ownership check
 export const getRecentByProject = query({
   args: {
     projectId: v.id("projects"),
@@ -218,38 +218,38 @@ export const getRecentByProject = query({
     }
 
     return await ctx.db
-      .query("chats")
+      .query("agents")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .order("desc")
       .take(args.limit ?? 10);
   },
 });
 
-// Delete a chat and its messages
+// Delete an agent and its messages
 export const remove = mutation({
-  args: { chatId: v.id("chats") },
+  args: { agentId: v.id("agents") },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
 
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat) {
-      throw new Error("Chat not found");
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) {
+      throw new Error("Agent not found");
     }
 
     // Verify project ownership
-    await verifyProjectOwnership(ctx, chat.projectId, user._id);
+    await verifyProjectOwnership(ctx, agent.projectId, user._id);
 
-    // Delete all messages in the chat
+    // Delete all messages in the agent
     const messages = await ctx.db
       .query("messages")
-      .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
+      .withIndex("by_agent", (q) => q.eq("agentId", args.agentId))
       .collect();
 
     for (const message of messages) {
       await ctx.db.delete(message._id);
     }
 
-    // Delete the chat
-    await ctx.db.delete(args.chatId);
+    // Delete the agent
+    await ctx.db.delete(args.agentId);
   },
 });

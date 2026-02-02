@@ -3,19 +3,19 @@
 import { useState, useEffect } from "react";
 import { Button, Modal, Input, Textarea } from "@/components/ui";
 
-interface CustomChatModalProps {
+interface CustomAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (title: string, systemPrompt: string) => void;
   isLoading?: boolean;
 }
 
-export function CustomChatModal({
+export function CustomAgentModal({
   isOpen,
   onClose,
   onSubmit,
   isLoading = false,
-}: CustomChatModalProps) {
+}: CustomAgentModalProps) {
   const [title, setTitle] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export function CustomChatModal({
     setError(null);
 
     if (!title.trim()) {
-      setError("Chat title is required");
+      setError("Agent title is required");
       return;
     }
 
@@ -52,8 +52,8 @@ export function CustomChatModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Create Custom Chat"
-      description="Create a chat with your own custom instructions for the AI advisor."
+      title="Create Custom Agent"
+      description="Create an agent with your own custom instructions for the AI advisor."
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -64,7 +64,7 @@ export function CustomChatModal({
         )}
 
         <Input
-          label="Chat Title"
+          label="Agent Title"
           placeholder="e.g., Competitive Analysis, User Research..."
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -73,7 +73,7 @@ export function CustomChatModal({
 
         <Textarea
           label="Custom System Prompt (optional)"
-          placeholder="Give the AI specific instructions for this chat. For example:&#10;&#10;You are an expert in competitive analysis. Help me analyze my competitors by asking about their products, pricing, and market positioning. Focus on actionable insights."
+          placeholder="Give the AI specific instructions for this agent. For example:&#10;&#10;You are an expert in competitive analysis. Help me analyze my competitors by asking about their products, pricing, and market positioning. Focus on actionable insights."
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
           rows={6}
@@ -85,7 +85,7 @@ export function CustomChatModal({
             Cancel
           </Button>
           <Button type="submit" isLoading={isLoading}>
-            Create Chat
+            Create Agent
           </Button>
         </div>
       </form>

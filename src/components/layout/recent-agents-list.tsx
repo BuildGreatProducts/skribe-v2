@@ -7,23 +7,23 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-interface RecentChatsListProps {
+interface RecentAgentsListProps {
   projectId: string;
 }
 
-export function RecentChatsList({ projectId }: RecentChatsListProps) {
+export function RecentAgentsList({ projectId }: RecentAgentsListProps) {
   const pathname = usePathname();
 
-  const recentChats = useQuery(
-    api.chats.getRecentByProject,
+  const recentAgents = useQuery(
+    api.agents.getRecentByProject,
     projectId ? { projectId: projectId as Id<"projects">, limit: 10 } : "skip"
   );
 
-  if (recentChats === undefined) {
+  if (recentAgents === undefined) {
     return (
       <div className="px-3 py-2">
         <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Recent Chats
+          Recent Agents
         </h3>
         <div className="space-y-1">
           {[1, 2, 3].map((i) => (
@@ -34,14 +34,14 @@ export function RecentChatsList({ projectId }: RecentChatsListProps) {
     );
   }
 
-  if (recentChats.length === 0) {
+  if (recentAgents.length === 0) {
     return (
       <div className="px-3 py-2">
         <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Recent Chats
+          Recent Agents
         </h3>
         <p className="px-3 text-xs text-muted-foreground">
-          No chats yet. Start a new conversation above.
+          No agents yet. Start a new conversation above.
         </p>
       </div>
     );
@@ -50,17 +50,17 @@ export function RecentChatsList({ projectId }: RecentChatsListProps) {
   return (
     <div className="px-3 py-2">
       <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Recent Chats
+        Recent Agents
       </h3>
       <ul className="space-y-1">
-        {recentChats.map((chat) => {
-          const chatPath = `/p/${projectId}/chat/${chat._id}`;
-          const isActive = pathname === chatPath;
+        {recentAgents.map((agent) => {
+          const agentPath = `/p/${projectId}/agent/${agent._id}`;
+          const isActive = pathname === agentPath;
 
           return (
-            <li key={chat._id}>
+            <li key={agent._id}>
               <Link
-                href={chatPath}
+                href={agentPath}
                 className={cn(
                   "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
                   isActive
@@ -68,8 +68,8 @@ export function RecentChatsList({ projectId }: RecentChatsListProps) {
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                <ChatIcon className="h-4 w-4 flex-shrink-0" />
-                <span className="truncate">{chat.title}</span>
+                <AgentIcon className="h-4 w-4 flex-shrink-0" />
+                <span className="truncate">{agent.title}</span>
               </Link>
             </li>
           );
@@ -79,7 +79,7 @@ export function RecentChatsList({ projectId }: RecentChatsListProps) {
   );
 }
 
-function ChatIcon({ className }: { className?: string }) {
+function AgentIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}

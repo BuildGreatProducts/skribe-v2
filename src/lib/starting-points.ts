@@ -66,4 +66,4 @@ export const STARTING_POINTS = [
 ] as const;
 
 export type StartingPointId = (typeof STARTING_POINTS)[number]["id"];
-export type ChatType = StartingPointId | "custom";
+export type AgentType = StartingPointId | "custom";
