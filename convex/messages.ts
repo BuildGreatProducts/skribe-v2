@@ -38,20 +38,20 @@ async function requireAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
 }
 
 /**
- * Helper to verify chat ownership through project.
- * Returns the chat if authorized.
+ * Helper to verify agent ownership through project.
+ * Returns the agent if authorized.
  */
-async function verifyChatOwnership(
+async function verifyAgentOwnership(
   ctx: QueryCtx | MutationCtx,
-  chatId: Id<"chats">,
+  agentId: Id<"agents">,
   userId: Id<"users">
 ) {
-  const chat = await ctx.db.get(chatId);
-  if (!chat) {
-    throw new Error("Chat not found");
+  const agent = await ctx.db.get(agentId);
+  if (!agent) {
+    throw new Error("Agent not found");
   }
 
-  const project = await ctx.db.get(chat.projectId);
+  const project = await ctx.db.get(agent.projectId);
   if (!project) {
     throw new Error("Project not found");
   }
@@ -60,12 +60,12 @@ async function verifyChatOwnership(
     throw new Error("Unauthorized: You do not own this project");
   }
 
-  return chat;
+  return agent;
 }
 
 /**
- * Helper to verify message ownership through chat and project.
- * Returns the message and chat if authorized.
+ * Helper to verify message ownership through agent and project.
+ * Returns the message and agent if authorized.
  */
 async function verifyMessageOwnership(
   ctx: QueryCtx | MutationCtx,
@@ -77,34 +77,34 @@ async function verifyMessageOwnership(
     throw new Error("Message not found");
   }
 
-  const chat = await verifyChatOwnership(ctx, message.chatId, userId);
+  const agent = await verifyAgentOwnership(ctx, message.agentId, userId);
 
-  return { message, chat };
+  return { message, agent };
 }
 
-// Get all messages for a chat (with ownership check)
-export const getByChat = query({
-  args: { chatId: v.id("chats") },
+// Get all messages for an agent (with ownership check)
+export const getByAgent = query({
+  args: { agentId: v.id("agents") },
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx);
     if (!user) {
       return [];
     }
 
-    // Verify chat ownership
-    const chat = await ctx.db.get(args.chatId);
-    if (!chat) {
+    // Verify agent ownership
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) {
       return [];
     }
 
-    const project = await ctx.db.get(chat.projectId);
+    const project = await ctx.db.get(agent.projectId);
     if (!project || project.userId !== user._id) {
       return [];
     }
 
     return await ctx.db
       .query("messages")
-      .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
+      .withIndex("by_agent", (q) => q.eq("agentId", args.agentId))
       .order("asc")
       .collect();
   },
@@ -124,13 +124,13 @@ export const getById = query({
       return null;
     }
 
-    // Verify ownership through chat and project
-    const chat = await ctx.db.get(message.chatId);
-    if (!chat) {
+    // Verify ownership through agent and project
+    const agent = await ctx.db.get(message.agentId);
+    if (!agent) {
       return null;
     }
 
-    const project = await ctx.db.get(chat.projectId);
+    const project = await ctx.db.get(agent.projectId);
     if (!project || project.userId !== user._id) {
       return null;
     }
@@ -142,28 +142,28 @@ export const getById = query({
 // Create a new message
 export const create = mutation({
   args: {
-    chatId: v.id("chats"),
+    agentId: v.id("agents"),
     role: messageRoles,
     content: v.string(),
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
 
-    // Verify chat ownership
-    await verifyChatOwnership(ctx, args.chatId, user._id);
+    // Verify agent ownership
+    await verifyAgentOwnership(ctx, args.agentId, user._id);
 
     const now = Date.now();
 
     // Create the message
     const messageId = await ctx.db.insert("messages", {
-      chatId: args.chatId,
+      agentId: args.agentId,
       role: args.role,
       content: args.content,
       createdAt: now,
     });
 
-    // Update chat's updatedAt timestamp
-    await ctx.db.patch(args.chatId, {
+    // Update agent's updatedAt timestamp
+    await ctx.db.patch(args.agentId, {
       updatedAt: now,
     });
 
@@ -187,8 +187,8 @@ export const update = mutation({
       content: args.content,
     });
 
-    // Update chat's updatedAt timestamp
-    await ctx.db.patch(message.chatId, {
+    // Update agent's updatedAt timestamp
+    await ctx.db.patch(message.agentId, {
       updatedAt: Date.now(),
     });
   },
@@ -210,7 +210,7 @@ export const remove = mutation({
 // Batch create messages (for importing or initial setup)
 export const batchCreate = mutation({
   args: {
-    chatId: v.id("chats"),
+    agentId: v.id("agents"),
     messages: v.array(
       v.object({
         role: messageRoles,
@@ -221,8 +221,8 @@ export const batchCreate = mutation({
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
 
-    // Verify chat ownership
-    await verifyChatOwnership(ctx, args.chatId, user._id);
+    // Verify agent ownership
+    await verifyAgentOwnership(ctx, args.agentId, user._id);
 
     const now = Date.now();
     const messageIds = [];
@@ -230,7 +230,7 @@ export const batchCreate = mutation({
     for (let i = 0; i < args.messages.length; i++) {
       const msg = args.messages[i];
       const messageId = await ctx.db.insert("messages", {
-        chatId: args.chatId,
+        agentId: args.agentId,
         role: msg.role,
         content: msg.content,
         createdAt: now + i, // Ensure ordering
@@ -238,8 +238,8 @@ export const batchCreate = mutation({
       messageIds.push(messageId);
     }
 
-    // Update chat's updatedAt timestamp
-    await ctx.db.patch(args.chatId, {
+    // Update agent's updatedAt timestamp
+    await ctx.db.patch(args.agentId, {
       updatedAt: now + args.messages.length,
     });
 

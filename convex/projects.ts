@@ -233,8 +233,8 @@ export const update = mutation({
 
 // Helper to batch delete items
 async function batchDelete(
-  ctx: { db: { delete: (id: Id<"documents"> | Id<"chats"> | Id<"messages">) => Promise<void> } },
-  items: Array<{ _id: Id<"documents"> | Id<"chats"> | Id<"messages"> }>,
+  ctx: { db: { delete: (id: Id<"documents"> | Id<"agents"> | Id<"messages">) => Promise<void> } },
+  items: Array<{ _id: Id<"documents"> | Id<"agents"> | Id<"messages"> }>,
   batchSize: number = 50
 ) {
   for (let i = 0; i < items.length; i += batchSize) {
@@ -270,18 +270,18 @@ export const deleteForDowngrade = mutation({
         .withIndex("by_project", (q) => q.eq("projectId", projectId))
         .collect();
 
-      // Collect all chats for this project
-      const chats = await ctx.db
-        .query("chats")
+      // Collect all agents for this project
+      const agents = await ctx.db
+        .query("agents")
         .withIndex("by_project", (q) => q.eq("projectId", projectId))
         .collect();
 
-      // Collect all messages for all chats
+      // Collect all messages for all agents
       const allMessages = await Promise.all(
-        chats.map((chat) =>
+        agents.map((agent) =>
           ctx.db
             .query("messages")
-            .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
+            .withIndex("by_agent", (q) => q.eq("agentId", agent._id))
             .collect()
         )
       );
@@ -290,8 +290,8 @@ export const deleteForDowngrade = mutation({
       // Batch delete messages first
       await batchDelete(ctx, messages);
 
-      // Batch delete chats
-      await batchDelete(ctx, chats);
+      // Batch delete agents
+      await batchDelete(ctx, agents);
 
       // Batch delete documents
       await batchDelete(ctx, documents);
@@ -346,18 +346,18 @@ export const remove = mutation({
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
 
-    // Collect all chats for this project
-    const chats = await ctx.db
-      .query("chats")
+    // Collect all agents for this project
+    const agents = await ctx.db
+      .query("agents")
       .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
       .collect();
 
-    // Collect all messages for all chats
+    // Collect all messages for all agents
     const allMessages = await Promise.all(
-      chats.map((chat) =>
+      agents.map((agent) =>
         ctx.db
           .query("messages")
-          .withIndex("by_chat", (q) => q.eq("chatId", chat._id))
+          .withIndex("by_agent", (q) => q.eq("agentId", agent._id))
           .collect()
       )
     );
@@ -366,8 +366,8 @@ export const remove = mutation({
     // Batch delete messages first (most numerous)
     await batchDelete(ctx, messages);
 
-    // Batch delete chats
-    await batchDelete(ctx, chats);
+    // Batch delete agents
+    await batchDelete(ctx, agents);
 
     // Batch delete documents
     await batchDelete(ctx, documents);

@@ -49,7 +49,7 @@ npx convex deploy    # Deploy Convex to production
 
 **Claude Tool Use**: The chat API provides tools for creating/updating documents. Claude streams responses and can call tools mid-conversation to create documents stored in Convex.
 
-**System Prompts**: 9 guided starting points (product_refinement, market_validation, customer_persona, brand_strategy, business_model, new_features, tech_stack, create_prd, go_to_market) with specialized system prompts in `src/lib/system-prompts.ts`. Document context is injected via `buildSystemPrompt()`.
+**System Prompts**: 9 guided starting points (idea_refinement, market_validation, customer_persona, brand_strategy, business_model, new_features, tech_stack, create_prd, go_to_market) with specialized system prompts in `src/lib/system-prompts.ts`. Document context is injected via `buildSystemPrompt()`.
 
 **Subscription Tiers**: Free trial (3 days), Starter (1 project), Pro (unlimited). Limits enforced in `convex/projects.ts` via `canCreateProject()`.
 

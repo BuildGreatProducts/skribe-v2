@@ -2,7 +2,7 @@
 
 import { ProjectSelector } from "./project-selector";
 import { SidebarNav } from "./sidebar-nav";
-import { RecentChatsList } from "./recent-chats-list";
+import { RecentAgentsList } from "./recent-agents-list";
 import { UserNav } from "./user-nav";
 import { useStoreUser } from "@/hooks/use-store-user";
 import Link from "next/link";
@@ -56,9 +56,9 @@ export function AppShell({ projectId, children }: AppShellProps) {
         {/* Divider */}
         <div className="mx-3 border-t border-border" />
 
-        {/* Recent Chats */}
+        {/* Recent Agents */}
         <div className="flex-1 overflow-y-auto">
-          <RecentChatsList projectId={projectId} />
+          <RecentAgentsList projectId={projectId} />
         </div>
 
         {/* User Nav */}

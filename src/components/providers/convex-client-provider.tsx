@@ -1,7 +1,12 @@
 "use client";
 
-import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ConvexReactClient, ConvexProvider } from "convex/react";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { useAuth } from "@clerk/nextjs";
 import { ReactNode, useMemo } from "react";
+
+// Check if Clerk is configured
+const isClerkEnabled = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
   const convex = useMemo(() => {
@@ -22,6 +27,16 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
           Convex not configured. Please set NEXT_PUBLIC_CONVEX_URL.
         </p>
       </div>
+    );
+  }
+
+  // Only use ConvexProviderWithClerk when Clerk is configured
+  // This avoids calling useAuth() when ClerkProvider is not present
+  if (isClerkEnabled) {
+    return (
+      <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+        {children}
+      </ConvexProviderWithClerk>
     );
   }
 

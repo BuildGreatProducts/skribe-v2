@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button, Modal, Input, Textarea } from "@/components/ui";
 
-interface EditChatModalProps {
+interface EditAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (title: string, systemPrompt: string) => void;
@@ -13,7 +13,7 @@ interface EditChatModalProps {
   externalError?: string | null;
 }
 
-export function EditChatModal({
+export function EditAgentModal({
   isOpen,
   onClose,
   onSubmit,
@@ -21,7 +21,7 @@ export function EditChatModal({
   initialTitle,
   initialSystemPrompt,
   externalError,
-}: EditChatModalProps) {
+}: EditAgentModalProps) {
   const [title, setTitle] = useState(initialTitle);
   const [systemPrompt, setSystemPrompt] = useState(initialSystemPrompt);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export function EditChatModal({
     setError(null);
 
     if (!title.trim()) {
-      setError("Chat title is required");
+      setError("Agent title is required");
       return;
     }
 
@@ -56,8 +56,8 @@ export function EditChatModal({
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Edit Chat Settings"
-      description="Update the chat title and customize the AI's behavior with a system prompt."
+      title="Edit Agent Settings"
+      description="Update the agent title and customize the AI's behavior with a system prompt."
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -68,7 +68,7 @@ export function EditChatModal({
         )}
 
         <Input
-          label="Chat Title"
+          label="Agent Title"
           placeholder="e.g., Competitive Analysis, User Research..."
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -77,7 +77,7 @@ export function EditChatModal({
 
         <Textarea
           label="System Prompt (optional)"
-          placeholder="Give the AI specific instructions for this chat. For example:&#10;&#10;You are an expert in competitive analysis. Help me analyze my competitors by asking about their products, pricing, and market positioning. Focus on actionable insights."
+          placeholder="Give the AI specific instructions for this agent. For example:&#10;&#10;You are an expert in competitive analysis. Help me analyze my competitors by asking about their products, pricing, and market positioning. Focus on actionable insights."
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
           rows={6}

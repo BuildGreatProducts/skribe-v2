@@ -191,7 +191,7 @@ export default function DocumentsPage() {
           <h1 className="font-serif text-2xl font-bold text-foreground">Documents</h1>
           <p className="mt-1 text-muted-foreground">
             {documents.length === 0
-              ? "Documents created during chats will appear here"
+              ? "Documents created during conversations will appear here"
               : `${documents.length} document${documents.length !== 1 ? "s" : ""} in this project`}
           </p>
         </div>
@@ -250,7 +250,7 @@ export default function DocumentsPage() {
           <h2 className="font-serif text-xl font-semibold mb-2">No documents yet</h2>
           <p className="text-muted-foreground text-center max-w-md mb-6">
             Documents are created during your conversations with the AI advisor.
-            Start a chat to generate your first document.
+            Start a conversation to generate your first document.
           </p>
           <Button onClick={() => router.push(`/p/${projectId}`)}>
             Start a Conversation

@@ -14,9 +14,9 @@ export function SidebarNav({ projectId }: SidebarNavProps) {
   const navItems = [
     {
       href: `/p/${projectId}`,
-      label: "New Chat",
+      label: "New Agent",
       icon: MessageIcon,
-      // Active when exactly on project page (not on chat or documents)
+      // Active when exactly on project page (not on agent or documents)
       isActive: pathname === `/p/${projectId}`,
     },
     {
