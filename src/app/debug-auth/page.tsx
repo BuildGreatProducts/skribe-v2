@@ -24,23 +24,18 @@ export default function DebugAuthPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-2">Convex Auth Identity</h2>
+        <h2 className="text-lg font-semibold mb-2">Convex Auth Status</h2>
         <div className="bg-gray-100 p-4 rounded-lg space-y-2 text-sm font-mono">
           {authDebug === undefined ? (
             <p>Loading...</p>
           ) : (
             <>
-              <p>Has Identity: {String(authDebug.hasIdentity)}</p>
-              {authDebug.identity ? (
-                <>
-                  <p>Subject: {authDebug.identity.subject}</p>
-                  <p>Issuer: {authDebug.identity.issuer}</p>
-                  <p>Email: {authDebug.identity.email || "null"}</p>
-                  <p>Token ID: {authDebug.identity.tokenIdentifier}</p>
-                </>
-              ) : (
+              <p>Authenticated: {String(authDebug.authenticated)}</p>
+              <p>Convex User ID: {authDebug.userId || "null"}</p>
+              <p>Timestamp: {new Date(authDebug.timestamp).toISOString()}</p>
+              {!authDebug.authenticated && (
                 <p className="text-red-600 font-bold">
-                  ⚠️ No identity - JWT token not being passed to Convex!
+                  ⚠️ Not authenticated - JWT token not being passed to Convex!
                 </p>
               )}
             </>
@@ -51,7 +46,7 @@ export default function DebugAuthPage() {
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-2">Troubleshooting</h2>
         <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-sm">
-          <p className="font-semibold mb-2">If &quot;Has Identity&quot; is false:</p>
+          <p className="font-semibold mb-2">If &quot;Authenticated&quot; is false:</p>
           <ol className="list-decimal list-inside space-y-1">
             <li>
               Go to{" "}

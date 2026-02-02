@@ -8,7 +8,13 @@ import { Button, Textarea, Modal } from "@/components/ui";
 import { useStoreUser } from "@/hooks/use-store-user";
 import Link from "next/link";
 import { useState, useMemo, useEffect, useRef } from "react";
-import DOMPurify from "dompurify";
+import { cn } from "@/lib/utils";
+import {
+  DocumentEditorPanel,
+  DocumentAIChat,
+  SelectableMarkdownRenderer,
+  SelectionContext,
+} from "@/components/document";
 
 // Token estimation: ~4 chars per token on average
 const CHARS_PER_TOKEN = 4;
@@ -32,6 +38,10 @@ export default function DocumentPage() {
   const [pushResult, setPushResult] = useState<{ success: boolean; message: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const pushResultTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // AI Editor Panel state
+  const [isAIPanelOpen, setIsAIPanelOpen] = useState(false);
+  const [selectedText, setSelectedText] = useState<SelectionContext | null>(null);
 
   useEffect(() => {
     return () => {
@@ -64,13 +74,6 @@ export default function DocumentPage() {
   }, [document]);
 
   const isLongDocument = document && document.content.length > WARNING_THRESHOLD_CHARS;
-
-  const handleEdit = () => {
-    if (!document) return;
-    setEditedTitle(document.title);
-    setEditedContent(document.content);
-    setIsEditing(true);
-  };
 
   const handleCancelEdit = () => {
     setIsEditing(false);
@@ -180,6 +183,38 @@ export default function DocumentPage() {
 
   const hasGitHub = project?.githubRepoName;
 
+  // Handle AI document update
+  const handleAIDocumentUpdate = async (newContent: string) => {
+    if (isEditing) {
+      // If in edit mode, just update the local state
+      setEditedContent(newContent);
+    } else {
+      // If in view mode, save directly to Convex
+      try {
+        await updateDocument({
+          documentId: documentId as Id<"documents">,
+          content: newContent,
+        });
+      } catch (error) {
+        console.error("Failed to apply AI edit:", error);
+        setActionError(
+          error instanceof Error ? error.message : "Failed to apply AI edit. Please try again."
+        );
+      }
+    }
+    // Clear selection after applying
+    setSelectedText(null);
+  };
+
+  // Clear selection when switching modes
+  const handleEdit = () => {
+    if (!document) return;
+    setEditedTitle(document.title);
+    setEditedContent(document.content);
+    setIsEditing(true);
+    setSelectedText(null); // Clear selection when entering edit mode
+  };
+
   if (document === undefined || project === undefined) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -200,44 +235,51 @@ export default function DocumentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted">
-      {/* Header */}
-      <header className="border-b border-border bg-white px-6 py-4">
-        <div className="flex items-center gap-4">
-          <Link
-            href={`/p/${projectId}/documents`}
-            className="rounded-lg p-2 hover:bg-muted"
-            aria-label="Back to documents"
-          >
-            <ArrowLeftIcon className="h-5 w-5" />
-          </Link>
-          <div className="flex-1 min-w-0">
-            {isEditing ? (
-              <input
-                type="text"
-                value={editedTitle}
-                onChange={(e) => setEditedTitle(e.target.value)}
-                className="w-full font-serif text-xl font-semibold bg-transparent border-b border-primary focus:outline-none"
-                placeholder="Document title"
-              />
-            ) : (
-              <h1 className="font-serif text-xl font-semibold truncate">
-                {document.title}
-              </h1>
-            )}
-            <p className="text-sm text-muted-foreground truncate">
-              {project?.name} &middot; Last updated{" "}
-              {new Date(document.updatedAt).toLocaleDateString()}
-            </p>
+    <div className="min-h-screen bg-muted flex">
+      {/* Main content area */}
+      <div
+        className={cn(
+          "flex-1 min-w-0 transition-all duration-300",
+          isAIPanelOpen ? "mr-[400px]" : ""
+        )}
+      >
+        {/* Header */}
+        <header className="border-b border-border bg-white px-6 py-4">
+          <div className="flex items-center gap-4">
+            <Link
+              href={`/p/${projectId}/documents`}
+              className="rounded-lg p-2 hover:bg-muted"
+              aria-label="Back to documents"
+            >
+              <ArrowLeftIcon className="h-5 w-5" />
+            </Link>
+            <div className="flex-1 min-w-0">
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  className="w-full font-serif text-xl font-semibold bg-transparent border-b border-primary focus:outline-none"
+                  placeholder="Document title"
+                />
+              ) : (
+                <h1 className="font-serif text-xl font-semibold truncate">
+                  {document.title}
+                </h1>
+              )}
+              <p className="text-sm text-muted-foreground truncate">
+                {project?.name} &middot; Last updated{" "}
+                {new Date(document.updatedAt).toLocaleDateString()}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-primary-light px-3 py-1 text-xs font-medium text-primary">
+                {document.type}
+              </span>
+              <SyncStatusBadge status={document.syncStatus} />
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-full bg-primary-light px-3 py-1 text-xs font-medium text-primary">
-              {document.type}
-            </span>
-            <SyncStatusBadge status={document.syncStatus} />
-          </div>
-        </div>
-      </header>
+        </header>
 
       {/* Context Length Warning */}
       {isLongDocument && (
@@ -325,6 +367,13 @@ export default function DocumentPage() {
               </>
             ) : (
               <>
+                <Button
+                  variant={isAIPanelOpen ? "primary" : "outline"}
+                  onClick={() => setIsAIPanelOpen(!isAIPanelOpen)}
+                >
+                  <SparklesIcon className="h-4 w-4 mr-2" />
+                  {isAIPanelOpen ? "Close AI" : "AI Editor"}
+                </Button>
                 {hasGitHub && (
                   <Button
                     variant="outline"
@@ -369,11 +418,16 @@ export default function DocumentPage() {
             />
           ) : (
             <div className="prose prose-slate max-w-none">
-              <MarkdownRenderer content={document.content} />
+              <SelectableMarkdownRenderer
+                content={document.content}
+                onSelectionChange={setSelectedText}
+                selectionEnabled={!isEditing}
+              />
             </div>
           )}
         </div>
       </main>
+      </div>
 
       {/* Delete Confirmation Modal */}
       <Modal
@@ -398,61 +452,23 @@ export default function DocumentPage() {
           </Button>
         </div>
       </Modal>
+
+      {/* AI Editor Panel */}
+      <DocumentEditorPanel
+        isOpen={isAIPanelOpen}
+        onClose={() => setIsAIPanelOpen(false)}
+      >
+        <DocumentAIChat
+          documentId={documentId}
+          projectId={projectId}
+          documentContent={isEditing ? editedContent : document.content}
+          selectedText={selectedText}
+          onDocumentUpdate={handleAIDocumentUpdate}
+          onClearSelection={() => setSelectedText(null)}
+        />
+      </DocumentEditorPanel>
     </div>
   );
-}
-
-// Markdown Renderer Component
-function MarkdownRenderer({ content }: { content: string }) {
-  const html = useMemo(() => {
-    let result = content;
-
-    result = result.replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold mt-6 mb-3">$1</h3>');
-    result = result.replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold mt-8 mb-4">$1</h2>');
-    result = result.replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mt-8 mb-4">$1</h1>');
-
-    result = result.replace(/\*\*\*(.*?)\*\*\*/g, "<strong><em>$1</em></strong>");
-    result = result.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-    result = result.replace(/\*(.*?)\*/g, "<em>$1</em>");
-
-    result = result.replace(/`(.*?)`/g, '<code class="rounded bg-muted px-1.5 py-0.5 text-sm font-mono">$1</code>');
-
-    result = result.replace(/^\s*[-*]\s+(.*$)/gm, '<li class="ul-item">$1</li>');
-    result = result.replace(/(<li class="ul-item">.*?<\/li>\n?)+/g, '<ul class="list-disc pl-6 my-4">$&</ul>');
-    result = result.replace(/class="ul-item"/g, 'class="ml-4"');
-
-    result = result.replace(/^\s*\d+\.\s+(.*$)/gm, '<li class="ol-item">$1</li>');
-    result = result.replace(/(<li class="ol-item">.*?<\/li>\n?)+/g, '<ol class="list-decimal pl-6 my-4">$&</ol>');
-    result = result.replace(/class="ol-item"/g, 'class="ml-4"');
-
-    result = result.replace(/^>\s+(.*$)/gm, '<blockquote class="border-l-4 border-primary pl-4 italic my-4">$1</blockquote>');
-
-    result = result.replace(/^---$/gm, '<hr class="my-8 border-border" />');
-
-    result = result.replace(/\n\n/g, '</p><p class="my-4">');
-    result = '<p class="my-4">' + result + "</p>";
-
-    result = result.replace(/<p class="my-4"><\/p>/g, "");
-    result = result.replace(/<p class="my-4">(<h[1-3])/g, "$1");
-    result = result.replace(/(<\/h[1-3]>)<\/p>/g, "$1");
-    result = result.replace(/<p class="my-4">(<ul)/g, "$1");
-    result = result.replace(/(<\/ul>)<\/p>/g, "$1");
-    result = result.replace(/<p class="my-4">(<ol)/g, "$1");
-    result = result.replace(/(<\/ol>)<\/p>/g, "$1");
-    result = result.replace(/<p class="my-4">(<blockquote)/g, "$1");
-    result = result.replace(/(<\/blockquote>)<\/p>/g, "$1");
-    result = result.replace(/<p class="my-4">(<hr)/g, "$1");
-
-    return DOMPurify.sanitize(result, {
-      ALLOWED_TAGS: [
-        "h1", "h2", "h3", "p", "strong", "em", "code", "ul", "ol", "li",
-        "blockquote", "hr", "br"
-      ],
-      ALLOWED_ATTR: ["class"],
-    });
-  }, [content]);
-
-  return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 // Sync Status Badge
@@ -544,6 +560,18 @@ function XIcon({ className }: { className?: string }) {
     <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+function SparklesIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+      <path d="M5 3v4" />
+      <path d="M19 17v4" />
+      <path d="M3 5h4" />
+      <path d="M17 19h4" />
     </svg>
   );
 }
