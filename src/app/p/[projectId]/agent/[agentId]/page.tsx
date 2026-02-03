@@ -6,9 +6,57 @@ import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
 import { Button, Textarea } from "@/components/ui";
 import { EditAgentModal } from "@/components/chat/agent";
+import { DocumentCard, AgentDocumentPanel } from "@/components/chat";
+import { SelectionContextChip } from "@/components/document/SelectionContextChip";
 import { useStoreUser } from "@/hooks/use-store-user";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import DOMPurify from "dompurify";
+import { SelectionContext } from "@/hooks/use-text-selection";
+
+// Types for parsed document events
+interface DocumentEvent {
+  type: "DOCUMENT_CREATED" | "DOCUMENT_UPDATED" | "DOCUMENT_EDIT";
+  documentId: string;
+  title?: string;
+  documentType?: string;
+  content?: string;
+  message?: string;
+}
+
+// Parse JSONL markers from message content
+function parseDocumentEvents(content: string): {
+  cleanContent: string;
+  events: DocumentEvent[];
+} {
+  const events: DocumentEvent[] = [];
+  const lines = content.split("\n");
+  const cleanLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (
+          parsed.type === "DOCUMENT_CREATED" ||
+          parsed.type === "DOCUMENT_UPDATED" ||
+          parsed.type === "DOCUMENT_EDIT"
+        ) {
+          events.push(parsed as DocumentEvent);
+          continue; // Don't add this line to clean content
+        }
+      } catch {
+        // Not valid JSON, treat as regular content
+      }
+    }
+    cleanLines.push(line);
+  }
+
+  return {
+    cleanContent: cleanLines.join("\n").trim(),
+    events,
+  };
+}
 
 export default function AgentPage() {
   const params = useParams();
@@ -26,6 +74,18 @@ export default function AgentPage() {
   const [updateError, setUpdateError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Document panel state
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [activeDocumentId, setActiveDocumentId] = useState<Id<"documents"> | null>(null);
+  const [activeDocumentContent, setActiveDocumentContent] = useState("");
+  const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
+
+  // Fetch documents for the project
+  const projectDocuments = useQuery(
+    api.documents.getByProject,
+    projectId ? { projectId: projectId as Id<"projects"> } : "skip"
+  );
 
   // Fetch agent with messages
   const agentData = useQuery(
@@ -52,6 +112,28 @@ export default function AgentPage() {
   // Focus textarea on load
   useEffect(() => {
     textareaRef.current?.focus();
+  }, []);
+
+  // Handle opening a document in the panel
+  const handleOpenDocument = useCallback((documentId: Id<"documents">) => {
+    setActiveDocumentId(documentId);
+    setIsPanelOpen(true);
+    setSelectionContext(null); // Clear any previous selection
+  }, []);
+
+  // Handle document content updates from the panel
+  const handleDocumentContentChange = useCallback((content: string) => {
+    setActiveDocumentContent(content);
+  }, []);
+
+  // Handle selection changes from the document panel
+  const handleSelectionChange = useCallback((selection: SelectionContext | null) => {
+    setSelectionContext(selection);
+  }, []);
+
+  // Clear selection context
+  const handleClearSelection = useCallback(() => {
+    setSelectionContext(null);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,15 +163,33 @@ export default function AgentPage() {
         content: "",
       });
 
+      // Build request body with optional document context
+      const requestBody: Record<string, unknown> = {
+        agentId,
+        projectId,
+        message: userMessage,
+      };
+
+      // Include document context if panel is open
+      if (isPanelOpen && activeDocumentId) {
+        requestBody.activeDocumentId = activeDocumentId;
+        requestBody.activeDocumentContent = activeDocumentContent;
+
+        // Include selection context if text is selected
+        if (selectionContext) {
+          requestBody.selectionContext = {
+            text: selectionContext.text,
+            startOffset: selectionContext.startOffset,
+            endOffset: selectionContext.endOffset,
+          };
+        }
+      }
+
       // Call the AI API
       const response = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentId,
-          projectId,
-          message: userMessage,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -148,6 +248,7 @@ export default function AgentPage() {
       setIsSubmitting(false);
       setIsStreaming(false);
       setAwaitingFirstChunk(false);
+      setSelectionContext(null); // Clear selection after sending
       textareaRef.current?.focus();
     }
   };
@@ -198,8 +299,20 @@ export default function AgentPage() {
     );
   }
 
+  // Prepare available documents for the panel
+  const availableDocuments = projectDocuments?.map((doc) => ({
+    _id: doc._id,
+    title: doc.title,
+    type: doc.type,
+  })) || [];
+
   return (
-    <div className="flex h-screen flex-col bg-muted">
+    <div
+      className="flex h-screen flex-col bg-muted transition-all duration-300"
+      style={{
+        marginRight: isPanelOpen ? "480px" : "0",
+      }}
+    >
       {/* Header */}
       <header className="border-b border-border bg-white px-6 py-4">
         <div className="flex items-center gap-4">
@@ -247,7 +360,11 @@ export default function AgentPage() {
             </div>
           ) : (
             agentData.messages.map((message) => (
-              <MessageBubble key={message._id} message={message} />
+              <MessageBubble
+                key={message._id}
+                message={message}
+                onOpenDocument={handleOpenDocument}
+              />
             ))
           )}
 
@@ -273,6 +390,21 @@ export default function AgentPage() {
 
       {/* Input */}
       <div className="border-t border-border bg-white px-6 py-4">
+        {/* Selection context chip */}
+        {selectionContext && (
+          <div className="mx-auto max-w-3xl mb-3">
+            <SelectionContextChip
+              selection={{
+                text: selectionContext.text,
+                startOffset: selectionContext.startOffset,
+                endOffset: selectionContext.endOffset,
+                contentSnapshot: activeDocumentContent,
+              }}
+              onClear={handleClearSelection}
+            />
+          </div>
+        )}
+
         <form
           onSubmit={handleSubmit}
           className="mx-auto flex max-w-3xl items-end gap-3"
@@ -283,7 +415,11 @@ export default function AgentPage() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type your message..."
+              placeholder={
+                selectionContext
+                  ? "Ask about or edit the selected text..."
+                  : "Type your message..."
+              }
               rows={1}
               className="min-h-[44px] max-h-32 resize-none"
               disabled={isSubmitting}
@@ -317,6 +453,21 @@ export default function AgentPage() {
           externalError={updateError}
         />
       )}
+
+      {/* Document Panel */}
+      <AgentDocumentPanel
+        isOpen={isPanelOpen}
+        onClose={() => {
+          setIsPanelOpen(false);
+          setSelectionContext(null);
+        }}
+        documentId={activeDocumentId}
+        projectId={projectId as Id<"projects">}
+        availableDocuments={availableDocuments}
+        onDocumentChange={handleOpenDocument}
+        onSelectionChange={handleSelectionChange}
+        onContentChange={handleDocumentContentChange}
+      />
     </div>
   );
 }
@@ -324,6 +475,7 @@ export default function AgentPage() {
 // Message bubble component
 function MessageBubble({
   message,
+  onOpenDocument,
 }: {
   message: {
     _id: string;
@@ -331,12 +483,23 @@ function MessageBubble({
     content: string;
     createdAt: number;
   };
+  onOpenDocument?: (documentId: Id<"documents">) => void;
 }) {
   const isUser = message.role === "user";
 
   if (message.role === "system") {
     return null;
   }
+
+  // Parse document events from assistant messages
+  const { cleanContent, events } = isUser
+    ? { cleanContent: message.content, events: [] }
+    : parseDocumentEvents(message.content);
+
+  // Separate document cards (created/updated) from edit notifications
+  const documentCards = events.filter(
+    (e) => e.type === "DOCUMENT_CREATED" || e.type === "DOCUMENT_UPDATED"
+  );
 
   return (
     <div className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -349,20 +512,40 @@ function MessageBubble({
           {isUser ? "U" : "S"}
         </span>
       </div>
-      <div
-        className={`max-w-[80%] rounded-2xl p-4 shadow-sm ${
-          isUser
-            ? "rounded-tr-none bg-secondary text-white"
-            : "rounded-tl-none bg-white"
-        }`}
-      >
-        <div className="prose prose-sm max-w-none">
-          {message.content ? (
-            <MarkdownRenderer content={message.content} isUser={isUser} />
-          ) : (
+      <div className="max-w-[80%] space-y-2">
+        {/* Main message content */}
+        {cleanContent && (
+          <div
+            className={`rounded-2xl p-4 shadow-sm ${
+              isUser
+                ? "rounded-tr-none bg-secondary text-white"
+                : "rounded-tl-none bg-white"
+            }`}
+          >
+            <div className="prose prose-sm max-w-none">
+              <MarkdownRenderer content={cleanContent} isUser={isUser} />
+            </div>
+          </div>
+        )}
+
+        {/* Render document cards for created/updated documents */}
+        {documentCards.map((event, index) => (
+          <DocumentCard
+            key={`${event.documentId}-${index}`}
+            documentId={event.documentId as Id<"documents">}
+            title={event.title || "Document"}
+            documentType={event.documentType || "custom"}
+            action={event.type === "DOCUMENT_CREATED" ? "created" : "updated"}
+            onClick={() => onOpenDocument?.(event.documentId as Id<"documents">)}
+          />
+        ))}
+
+        {/* Show placeholder if no content yet */}
+        {!cleanContent && documentCards.length === 0 && (
+          <div className="rounded-2xl rounded-tl-none bg-white p-4 shadow-sm">
             <span className="text-muted-foreground italic">...</span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

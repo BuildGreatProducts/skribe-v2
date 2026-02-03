@@ -4,6 +4,11 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { buildSystemPrompt } from "@/lib/system-prompts";
+import {
+  DOCUMENT_EDIT_TOOLS,
+  executeDocumentTool,
+} from "@/lib/document-edit-tools";
+import { SelectionContext } from "@/lib/document-ai-prompts";
 import Anthropic from "@anthropic-ai/sdk";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -88,13 +93,39 @@ const DOCUMENT_TOOLS: Anthropic.Tool[] = [
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId: clerkUserId } = await auth();
-    if (!clerkUserId) {
+    const authResult = await auth();
+    if (!authResult.userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get Clerk JWT token to authenticate with Convex
+    const token = await authResult.getToken({ template: "convex" });
+    if (!token) {
+      return NextResponse.json(
+        { error: "Failed to get authentication token" },
+        { status: 401 }
+      );
+    }
+
+    // Set the auth token on the Convex client
+    convex.setAuth(token);
+
     const body = await request.json();
-    const { agentId, projectId, message } = body;
+    const {
+      agentId,
+      projectId,
+      message,
+      activeDocumentId,
+      activeDocumentContent,
+      selectionContext,
+    } = body as {
+      agentId: string;
+      projectId: string;
+      message: string;
+      activeDocumentId?: string;
+      activeDocumentContent?: string;
+      selectionContext?: SelectionContext;
+    };
 
     if (!agentId || !projectId || !message) {
       return NextResponse.json(
@@ -105,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     // Resolve the Convex user from Clerk ID
     const user = await convex.query(api.users.getByClerkId, {
-      clerkId: clerkUserId,
+      clerkId: authResult.userId,
     });
 
     if (!user) {
@@ -159,10 +190,16 @@ export async function POST(request: NextRequest) {
       agentId: agentId as Id<"agents">,
     });
 
+    // Track the active document content for editing (mutable for tool loop)
+    let currentDocumentContent = activeDocumentContent || "";
+
     // Build system prompt with document context and tool instructions
     const baseSystemPrompt =
       agent.systemPrompt || buildSystemPrompt(agent.type, documents);
-    const toolInstructions = `
+
+    // Build tool instructions based on context
+    const buildToolInstructions = () => {
+      let instructions = `
 
 ## Available Tools
 
@@ -170,7 +207,53 @@ You have access to the following tools for document management:
 
 1. **create_document**: Create a new document when you have enough information from the conversation. Always ask the user for confirmation before creating a document. After gathering sufficient information, say something like "I can create a [Document Type] document based on our discussion. Would you like me to create it now?"
 
-2. **update_document**: Update an existing document when the user wants to make changes. Reference the document by its ID.
+2. **update_document**: Update an existing document when the user wants to make changes. Reference the document by its ID.`;
+
+      // Add editing tools if a document is actively being edited
+      if (activeDocumentId) {
+        const activeDoc = fullDocuments.find((d) => d._id === activeDocumentId);
+        instructions += `
+
+### Active Document for Editing
+
+The user has the following document open for editing:
+- **Title:** ${activeDoc?.title || "Unknown"}
+- **Type:** ${activeDoc?.type || "unknown"}
+- **ID:** ${activeDocumentId}
+
+**Current Document Content:**
+\`\`\`markdown
+${currentDocumentContent}
+\`\`\``;
+
+        if (selectionContext) {
+          instructions += `
+
+**Currently Selected Text:**
+"${selectionContext.text}"
+(Position: characters ${selectionContext.startOffset} to ${selectionContext.endOffset})
+
+When the user asks to edit, rewrite, or change the selected text, use the **replace_selection** tool.`;
+        }
+
+        instructions += `
+
+### Document Editing Tools (for the active document)
+
+You also have access to these editing tools for the active document:
+
+3. **replace_selection**: Replace the currently selected text with new content. Only use when text is selected.
+
+4. **insert_at_position**: Insert new content at a specific position. Use 'start', 'end', 'after_heading:HeadingText', or 'line:N'.
+
+5. **replace_section**: Replace an entire section by its heading.
+
+6. **find_and_replace**: Find and replace specific text in the document.
+
+7. **rewrite_document**: Replace the entire document content. Only use for major restructuring after user confirmation.`;
+      }
+
+      instructions += `
 
 ### Existing Documents
 
@@ -188,7 +271,19 @@ When creating or updating documents:
 - Be comprehensive but concise
 - Ask clarifying questions if needed before creating`;
 
-    const systemPrompt = baseSystemPrompt + toolInstructions;
+      return instructions;
+    };
+
+    // Function to rebuild system prompt with current document content
+    const buildCurrentSystemPrompt = () =>
+      baseSystemPrompt + buildToolInstructions();
+
+    let systemPrompt = buildCurrentSystemPrompt();
+
+    // Determine which tools to provide
+    const tools: Anthropic.Tool[] = activeDocumentId
+      ? [...DOCUMENT_TOOLS, ...DOCUMENT_EDIT_TOOLS]
+      : DOCUMENT_TOOLS;
 
     // Format messages for Claude API
     const claudeMessages: Anthropic.MessageParam[] = messages
@@ -227,12 +322,15 @@ When creating or updating documents:
           let continueLoop = true;
 
           while (continueLoop) {
+            // Rebuild system prompt with latest document content
+            systemPrompt = buildCurrentSystemPrompt();
+
             const response = await anthropic.messages.create({
               model: "claude-sonnet-4-20250514",
               max_tokens: 4096,
               system: systemPrompt,
               messages: currentMessages,
-              tools: DOCUMENT_TOOLS,
+              tools,
               stream: true,
             });
 
@@ -318,7 +416,7 @@ When creating or updating documents:
                   const content = toolInput.content as string;
 
                   // Create the document
-                  const documentId = await convex.mutation(
+                  const newDocumentId = await convex.mutation(
                     api.documents.create,
                     {
                       projectId: projectId as Id<"projects">,
@@ -337,14 +435,16 @@ When creating or updating documents:
                     }
                   );
 
-                  toolResult = `Document "${title}" created successfully with ID: ${documentId}. The document is now available in the project dashboard.`;
+                  toolResult = `Document "${title}" created successfully with ID: ${newDocumentId}. The document is now available in the project dashboard.`;
 
-                  // Send a special marker to the client so it knows a document was created
-                  controller.enqueue(
-                    encoder.encode(
-                      `\n\n---\n**Document Created:** ${title}\n---\n\n`
-                    )
-                  );
+                  // Send JSONL marker so client knows a document was created
+                  const createMarker = JSON.stringify({
+                    type: "DOCUMENT_CREATED",
+                    documentId: newDocumentId,
+                    title,
+                    documentType: docType,
+                  });
+                  controller.enqueue(encoder.encode(`\n${createMarker}\n`));
                 } else if (currentToolUse.name === "update_document") {
                   const documentIdStr = toolInput.document_id as string;
                   const title = toolInput.title as string | undefined;
@@ -359,12 +459,59 @@ When creating or updating documents:
 
                   toolResult = `Document updated successfully.`;
 
-                  // Send a special marker to the client
-                  controller.enqueue(
-                    encoder.encode(
-                      `\n\n---\n**Document Updated:** ${title || "Document"}\n---\n\n`
-                    )
-                  );
+                  // Send JSONL marker so client knows a document was updated
+                  const updateMarker = JSON.stringify({
+                    type: "DOCUMENT_UPDATED",
+                    documentId: documentIdStr,
+                    title: title || "Document",
+                  });
+                  controller.enqueue(encoder.encode(`\n${updateMarker}\n`));
+                } else if (
+                  // Handle document editing tools
+                  [
+                    "replace_selection",
+                    "insert_at_position",
+                    "replace_section",
+                    "find_and_replace",
+                    "rewrite_document",
+                  ].includes(currentToolUse.name)
+                ) {
+                  if (!activeDocumentId) {
+                    toolResult =
+                      "Error: No document is currently open for editing.";
+                  } else {
+                    // Execute the document editing tool
+                    const editResult = executeDocumentTool(
+                      currentToolUse.name,
+                      toolInput,
+                      currentDocumentContent,
+                      selectionContext
+                    );
+
+                    if (editResult.success) {
+                      // Update the document content in memory
+                      currentDocumentContent = editResult.newContent;
+
+                      // Update the document in Convex
+                      await convex.mutation(api.documents.update, {
+                        documentId: activeDocumentId as Id<"documents">,
+                        content: currentDocumentContent,
+                      });
+
+                      toolResult = editResult.message;
+
+                      // Send JSONL marker so client can update document preview
+                      const editMarker = JSON.stringify({
+                        type: "DOCUMENT_EDIT",
+                        documentId: activeDocumentId,
+                        content: currentDocumentContent,
+                        message: editResult.message,
+                      });
+                      controller.enqueue(encoder.encode(`\n${editMarker}\n`));
+                    } else {
+                      toolResult = `Error: ${editResult.message}`;
+                    }
+                  }
                 } else {
                   toolResult = `Unknown tool: ${currentToolUse.name}`;
                 }
