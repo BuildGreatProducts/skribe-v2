@@ -40,9 +40,9 @@ export function AgentDocumentPanel({
     documentId ? { documentId } : "skip"
   );
 
-  // Notify parent of content changes
+  // Notify parent of content changes (including empty strings)
   useEffect(() => {
-    if (documentData?.content && onContentChange) {
+    if (documentData?.content !== undefined && onContentChange) {
       onContentChange(documentData.content);
     }
   }, [documentData?.content, onContentChange]);

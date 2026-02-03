@@ -11,8 +11,6 @@ import {
 import { SelectionContext } from "@/lib/document-ai-prompts";
 import Anthropic from "@anthropic-ai/sdk";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 // Document type mapping from agent type to document type
 const AGENT_TYPE_TO_DOC_TYPE: Record<string, string> = {
   idea_refinement: "prd",
@@ -107,7 +105,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Set the auth token on the Convex client
+    // Create a per-request Convex client to avoid auth leaking between requests
+    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
     convex.setAuth(token);
 
     const body = await request.json();
