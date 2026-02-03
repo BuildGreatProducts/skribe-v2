@@ -7,6 +7,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
+// Pastel colors for agent icons - cycles through 6 colors
+const PASTEL_COLORS = [
+  "bg-pastel-rose",
+  "bg-pastel-lavender",
+  "bg-pastel-sky",
+  "bg-pastel-mint",
+  "bg-pastel-peach",
+  "bg-pastel-lemon",
+] as const;
+
+function getAgentColor(index: number): string {
+  return PASTEL_COLORS[index % PASTEL_COLORS.length];
+}
+
 interface RecentAgentsListProps {
   projectId: string;
 }
@@ -53,9 +67,10 @@ export function RecentAgentsList({ projectId }: RecentAgentsListProps) {
         Recent Agents
       </h3>
       <ul className="space-y-1">
-        {recentAgents.map((agent) => {
+        {recentAgents.map((agent, index) => {
           const agentPath = `/p/${projectId}/agent/${agent._id}`;
           const isActive = pathname === agentPath;
+          const colorClass = getAgentColor(index);
 
           return (
             <li key={agent._id}>
@@ -64,11 +79,13 @@ export function RecentAgentsList({ projectId }: RecentAgentsListProps) {
                 className={cn(
                   "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
                   isActive
-                    ? "bg-primary-light text-primary"
+                    ? "bg-muted text-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                <AgentIcon className="h-4 w-4 flex-shrink-0" />
+                <span className={cn("flex h-5 w-5 flex-shrink-0 items-center justify-center rounded", colorClass)}>
+                  <AgentIcon className="h-3 w-3 text-foreground/70" />
+                </span>
                 <span className="truncate">{agent.title}</span>
               </Link>
             </li>

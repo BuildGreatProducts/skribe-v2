@@ -2,22 +2,30 @@
 
 :root {
   /* Fonts */
-  --font-helvetica: Helvetica, Arial, sans-serif;
-  --font-ibm-plex-serif: 'IBM Plex Serif', Georgia, serif;
+  --font-dm-sans: 'DM Sans', Helvetica, Arial, sans-serif;
+  --font-instrument-serif: 'Instrument Serif', Georgia, serif;
 
   /* Background colors */
   --background: #ffffff;
   --foreground: #171717;
 
-  /* Primary accent - Dark green */
-  --primary: #166534;
-  --primary-hover: #14532d;
-  --primary-light: #dcfce7;
+  /* Primary accent - Black for buttons */
+  --primary: #171717;
+  --primary-hover: #404040;
+  --primary-light: #f5f5f5;
 
-  /* Secondary accent - Lime green */
-  --secondary: #84cc16;
-  --secondary-hover: #65a30d;
-  --secondary-light: #ecfccb;
+  /* Secondary accent - Soft gray */
+  --secondary: #525252;
+  --secondary-hover: #404040;
+  --secondary-light: #fafafa;
+
+  /* Pastel palette - 6 colors for accents and agent icons */
+  --pastel-rose: #FFD6E0;
+  --pastel-lavender: #E0D6FF;
+  --pastel-sky: #D6EFFF;
+  --pastel-mint: #D6FFE4;
+  --pastel-peach: #FFE5D6;
+  --pastel-lemon: #FFF5D6;
 
   /* Neutral colors */
   --muted: #f5f5f5;
@@ -34,6 +42,7 @@
   --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-soft: 0 2px 8px -2px rgb(0 0 0 / 0.08), 0 4px 12px -4px rgb(0 0 0 / 0.05);
 }
 
 @theme inline {
@@ -51,24 +60,38 @@
   --color-destructive: var(--destructive);
   --color-success: var(--success);
   --color-warning: var(--warning);
-  --font-sans: var(--font-helvetica);
-  --font-serif: var(--font-ibm-plex-serif);
+  --color-pastel-rose: var(--pastel-rose);
+  --color-pastel-lavender: var(--pastel-lavender);
+  --color-pastel-sky: var(--pastel-sky);
+  --color-pastel-mint: var(--pastel-mint);
+  --color-pastel-peach: var(--pastel-peach);
+  --color-pastel-lemon: var(--pastel-lemon);
+  --font-sans: var(--font-dm-sans);
+  --font-serif: var(--font-instrument-serif);
+  --shadow-soft: var(--shadow-soft);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Helvetica, Arial, sans-serif;
+  font-family: 'DM Sans', Helvetica, Arial, sans-serif;
 }
 
 /* Typography */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'IBM Plex Serif', Georgia, serif;
-  font-weight: 600;
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-weight: 400;
 }
 
 .font-serif {
-  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-family: 'Instrument Serif', Georgia, serif;
+}
+
+/* Logo specific styling - italic with tight tracking */
+.logo-text {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  letter-spacing: -0.03em;
 }
 
 /* Focus styles */

@@ -27,7 +27,7 @@ export function UserNav() {
 
   if (!isLoaded) {
     return (
-      <div className="border-t border-border px-3 py-3">
+      <div className="px-3 py-3">
         <div className="h-12 animate-pulse rounded-lg bg-muted"></div>
       </div>
     );
@@ -57,7 +57,7 @@ export function UserNav() {
         : "bg-muted text-muted-foreground";
 
   return (
-    <div className="border-t border-border px-3 py-3" ref={dropdownRef}>
+    <div className="px-3 py-3" ref={dropdownRef}>
       <div className="relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
@@ -66,7 +66,7 @@ export function UserNav() {
             isOpen && "bg-muted"
           )}
         >
-          <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full bg-primary-light">
+          <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full bg-pastel-lavender">
             {user.imageUrl ? (
               <img
                 src={user.imageUrl}
@@ -74,7 +74,7 @@ export function UserNav() {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm font-medium text-primary">
+              <div className="flex h-full w-full items-center justify-center text-sm font-medium text-foreground">
                 {(user.fullName || user.emailAddresses[0]?.emailAddress || "U")[0].toUpperCase()}
               </div>
             )}
