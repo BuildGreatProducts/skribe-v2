@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button, Textarea } from "@/components/ui";
 import { SelectionContextChip, SelectionContext } from "./SelectionContextChip";
 import { PendingUpdatePreview } from "./PendingUpdatePreview";
@@ -36,14 +36,31 @@ export function DocumentAIChat({
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // AbortController ref for cleanup
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+      readerRef.current?.cancel();
+    };
+  }, []);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || isSubmitting) return;
+
+    // Abort any previous request
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const userMessage = inputValue.trim();
     setInputValue("");
@@ -68,6 +85,7 @@ export function DocumentAIChat({
           selectionContext: selectedText,
           messageHistory: messages,
         }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -76,48 +94,65 @@ export function DocumentAIChat({
       }
 
       const reader = response.body?.getReader();
+      readerRef.current = reader || null;
       const decoder = new TextDecoder();
       let fullContent = "";
 
       if (reader) {
         while (true) {
+          // Check if aborted before reading
+          if (controller.signal.aborted) break;
+
           const { done, value } = await reader.read();
           if (done) break;
+
+          // Check if aborted after reading
+          if (controller.signal.aborted) break;
 
           const chunk = decoder.decode(value, { stream: true });
           fullContent += chunk;
 
-          // Check for document update markers
-          const updateRegex = /<!-- DOCUMENT_UPDATE:(.*?) -->/g;
-          let match;
-          let cleanedContent = fullContent;
+          // Check for JSONL document update markers
+          const lines = fullContent.split("\n");
+          let cleanedContent = "";
 
-          while ((match = updateRegex.exec(fullContent)) !== null) {
-            try {
-              const updateData = JSON.parse(match[1]);
-              setPendingUpdate(updateData.content);
-            } catch {
-              // Ignore parse errors for partial JSON
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('{"type":"DOCUMENT_UPDATE"')) {
+              try {
+                const updateData = JSON.parse(trimmedLine);
+                if (updateData.type === "DOCUMENT_UPDATE" && updateData.content) {
+                  if (!controller.signal.aborted) {
+                    setPendingUpdate(updateData.content);
+                  }
+                }
+              } catch {
+                // Ignore parse errors for partial JSON
+              }
+            } else {
+              cleanedContent += line + "\n";
             }
           }
 
-          // Remove the markers from displayed content
-          cleanedContent = fullContent.replace(/<!-- DOCUMENT_UPDATE:.*? -->/g, "");
-
-          // Update assistant message
-          setMessages((prev) => {
-            const updated = [...prev];
-            if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
-              updated[updated.length - 1] = {
-                role: "assistant",
-                content: cleanedContent.trim(),
-              };
-            }
-            return updated;
-          });
+          // Update assistant message if not aborted
+          if (!controller.signal.aborted) {
+            setMessages((prev) => {
+              const updated = [...prev];
+              if (updated.length > 0 && updated[updated.length - 1].role === "assistant") {
+                updated[updated.length - 1] = {
+                  role: "assistant",
+                  content: cleanedContent.trim(),
+                };
+              }
+              return updated;
+            });
+          }
         }
       }
     } catch (err) {
+      // Don't update state if aborted
+      if (controller.signal.aborted) return;
+
       console.error("Document AI error:", err);
       setError(err instanceof Error ? err.message : "Something went wrong");
       // Update the placeholder message with error indication
@@ -132,9 +167,13 @@ export function DocumentAIChat({
         return updated;
       });
     } finally {
-      setIsSubmitting(false);
+      // Only update submitting state if not aborted
+      if (!controller.signal.aborted) {
+        setIsSubmitting(false);
+      }
+      readerRef.current = null;
     }
-  };
+  }, [inputValue, isSubmitting, documentId, projectId, documentContent, selectedText, messages]);
 
   const handleApplyUpdate = () => {
     if (pendingUpdate) {

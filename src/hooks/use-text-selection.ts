@@ -56,27 +56,28 @@ export function useTextSelection({
       const searchEnd = Math.min(content.length, approximateOffset + selectedText.length + windowSize);
       const searchArea = content.slice(searchStart, searchEnd);
 
-      // Find the selected text in the search area
+      // Find the selected text in the search area (exact match first)
       const index = searchArea.indexOf(selectedText);
       if (index !== -1) {
         const start = searchStart + index;
         return { start, end: start + selectedText.length };
       }
 
-      // Try a fuzzy match - sometimes whitespace differs between rendered and source
+      // Try a fuzzy match within a scoped window to avoid matching duplicates elsewhere
+      // Only normalize the search window, not the entire document
       const normalizedSelected = selectedText.replace(/\s+/g, " ").trim();
-      const normalizedContent = content.replace(/\s+/g, " ");
-      const normalizedIndex = normalizedContent.indexOf(normalizedSelected);
+      const normalizedSearchArea = searchArea.replace(/\s+/g, " ");
+      const normalizedIndex = normalizedSearchArea.indexOf(normalizedSelected);
 
       if (normalizedIndex !== -1) {
-        // Map back to original positions (approximate)
+        // Map back to original positions within the search area
         let originalPos = 0;
         let normalizedPos = 0;
 
-        while (normalizedPos < normalizedIndex && originalPos < content.length) {
-          if (/\s/.test(content[originalPos])) {
+        while (normalizedPos < normalizedIndex && originalPos < searchArea.length) {
+          if (/\s/.test(searchArea[originalPos])) {
             // Skip whitespace in original, count as 1 in normalized
-            while (originalPos < content.length && /\s/.test(content[originalPos])) {
+            while (originalPos < searchArea.length && /\s/.test(searchArea[originalPos])) {
               originalPos++;
             }
             normalizedPos++;
@@ -86,15 +87,15 @@ export function useTextSelection({
           }
         }
 
-        const start = originalPos;
+        const start = searchStart + originalPos;
         // Find end similarly
-        let endPos = start;
+        let endPos = originalPos;
         let selectedPos = 0;
-        while (selectedPos < selectedText.length && endPos < content.length) {
-          if (/\s/.test(content[endPos]) && /\s/.test(selectedText[selectedPos])) {
-            while (endPos < content.length && /\s/.test(content[endPos])) endPos++;
+        while (selectedPos < selectedText.length && endPos < searchArea.length) {
+          if (/\s/.test(searchArea[endPos]) && /\s/.test(selectedText[selectedPos])) {
+            while (endPos < searchArea.length && /\s/.test(searchArea[endPos])) endPos++;
             while (selectedPos < selectedText.length && /\s/.test(selectedText[selectedPos])) selectedPos++;
-          } else if (content[endPos] === selectedText[selectedPos]) {
+          } else if (searchArea[endPos] === selectedText[selectedPos]) {
             endPos++;
             selectedPos++;
           } else {
@@ -102,7 +103,7 @@ export function useTextSelection({
           }
         }
 
-        return { start, end: endPos };
+        return { start, end: searchStart + endPos };
       }
 
       return null;
@@ -112,11 +113,13 @@ export function useTextSelection({
 
   const handleSelectionChange = useCallback(() => {
     if (!enabled || !containerRef.current) {
+      onSelect(null);
       return;
     }
 
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
+      onSelect(null);
       return;
     }
 
@@ -125,11 +128,13 @@ export function useTextSelection({
       !containerRef.current.contains(selection.anchorNode) ||
       !containerRef.current.contains(selection.focusNode)
     ) {
+      onSelect(null);
       return;
     }
 
     const selectedText = selection.toString();
     if (!selectedText.trim()) {
+      onSelect(null);
       return;
     }
 
@@ -151,6 +156,8 @@ export function useTextSelection({
         endOffset: offsets.end,
         contentSnapshot: content,
       });
+    } else {
+      onSelect(null);
     }
   }, [enabled, content, getTextOffset, findMarkdownOffset, onSelect]);
 

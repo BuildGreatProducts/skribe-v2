@@ -10,10 +10,19 @@ export interface SelectionContext {
   endOffset: number;
 }
 
+// Escape code fences to prevent prompt injection
+function escapeCodeFences(text: string): string {
+  return text.replace(/```/g, "\\`\\`\\`");
+}
+
 export function buildDocumentEditPrompt(
   document: DocumentContext,
   selectionContext?: SelectionContext
 ): string {
+  // Sanitize content to prevent code fence breaking
+  const safeContent = escapeCodeFences(document.content);
+  const safeSelection = selectionContext ? escapeCodeFences(selectionContext.text) : "";
+
   const basePrompt = `You are Skribe's document editing assistant. You help users refine and improve their documents through targeted edits.
 
 ## Your Role
@@ -29,7 +38,7 @@ export function buildDocumentEditPrompt(
 
 ## Document Content
 \`\`\`markdown
-${document.content}
+${safeContent}
 \`\`\`
 `;
 
@@ -38,7 +47,7 @@ ${document.content}
 ## User Selection
 The user has selected the following text (characters ${selectionContext.startOffset}-${selectionContext.endOffset}):
 \`\`\`
-${selectionContext.text}
+${safeSelection}
 \`\`\`
 
 **Important:** When the user asks for changes without specifying scope, apply changes to this selection using the replace_selection tool. Only make changes outside the selection if the user explicitly asks for it.

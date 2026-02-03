@@ -376,3 +376,35 @@ export const remove = mutation({
     await ctx.db.delete(args.projectId);
   },
 });
+
+// Internal query for API routes - get project by ID with clerkId for ownership validation
+// This is used by server-side API routes where ctx.auth is not available
+export const getByIdForApiRoute = query({
+  args: {
+    projectId: v.id("projects"),
+    clerkId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Look up user by clerkId
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
+
+    if (!user) {
+      return null;
+    }
+
+    const project = await ctx.db.get(args.projectId);
+    if (!project) {
+      return null;
+    }
+
+    // Verify ownership
+    if (project.userId !== user._id) {
+      return null;
+    }
+
+    return project;
+  },
+});

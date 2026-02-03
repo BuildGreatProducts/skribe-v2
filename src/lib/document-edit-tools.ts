@@ -163,6 +163,7 @@ function handleReplaceSelection(
   input: Record<string, unknown>,
   selectionContext?: SelectionContext
 ): ToolExecutionResult {
+  // Validate selectionContext exists
   if (!selectionContext) {
     return {
       success: false,
@@ -171,9 +172,63 @@ function handleReplaceSelection(
     };
   }
 
-  const newContent = input.new_content as string;
-  const before = content.slice(0, selectionContext.startOffset);
-  const after = content.slice(selectionContext.endOffset);
+  // Validate input.new_content exists and is a string
+  if (input.new_content === undefined || input.new_content === null) {
+    return {
+      success: false,
+      newContent: content,
+      message: "Missing new_content parameter for replacement.",
+    };
+  }
+
+  if (typeof input.new_content !== "string") {
+    return {
+      success: false,
+      newContent: content,
+      message: "new_content must be a string.",
+    };
+  }
+
+  // Validate offsets are numbers
+  const startOffset = selectionContext.startOffset;
+  const endOffset = selectionContext.endOffset;
+
+  if (typeof startOffset !== "number" || typeof endOffset !== "number") {
+    return {
+      success: false,
+      newContent: content,
+      message: "Invalid selection offsets.",
+    };
+  }
+
+  // Validate offset bounds
+  if (startOffset < 0 || endOffset < 0) {
+    return {
+      success: false,
+      newContent: content,
+      message: "Selection offsets cannot be negative.",
+    };
+  }
+
+  if (startOffset > endOffset) {
+    return {
+      success: false,
+      newContent: content,
+      message: "Invalid selection: start offset is greater than end offset.",
+    };
+  }
+
+  if (endOffset > content.length) {
+    return {
+      success: false,
+      newContent: content,
+      message: "Selection extends beyond document length. The document may have changed since selection.",
+    };
+  }
+
+  const newContent = input.new_content;
+  const before = content.slice(0, startOffset);
+  const after = content.slice(endOffset);
 
   return {
     success: true,

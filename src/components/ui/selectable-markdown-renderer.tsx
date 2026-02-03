@@ -118,3 +118,5 @@ export function SelectableMarkdownRenderer({
     />
   );
 }
+
+export type { SelectionContext };

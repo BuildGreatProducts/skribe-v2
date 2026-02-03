@@ -5,14 +5,13 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
 import { Button, Textarea, Modal } from "@/components/ui";
+import { SelectableMarkdownRenderer } from "@/components/ui/selectable-markdown-renderer";
 import { useStoreUser } from "@/hooks/use-store-user";
 import Link from "next/link";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
 import {
   DocumentEditorPanel,
   DocumentAIChat,
-  SelectableMarkdownRenderer,
   SelectionContext,
 } from "@/components/document";
 
@@ -238,10 +237,11 @@ export default function DocumentPage() {
     <div className="min-h-screen bg-muted flex">
       {/* Main content area */}
       <div
-        className={cn(
-          "flex-1 min-w-0 transition-all duration-300",
-          isAIPanelOpen ? "mr-[400px]" : ""
-        )}
+        className="flex-1 min-w-0 transition-all duration-300"
+        style={{
+          paddingRight: isAIPanelOpen ? "var(--ai-panel-width, 400px)" : "0",
+          ["--ai-panel-width" as string]: "min(400px, 100vw - 2rem)",
+        }}
       >
         {/* Header */}
         <header className="border-b border-border bg-white px-6 py-4">

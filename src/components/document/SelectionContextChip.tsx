@@ -43,6 +43,7 @@ export function SelectionContextChip({
         {charCount} chars
       </span>
       <button
+        type="button"
         onClick={onClear}
         className="p-0.5 rounded-full hover:bg-primary/10 transition-colors flex-shrink-0"
         aria-label="Clear selection"

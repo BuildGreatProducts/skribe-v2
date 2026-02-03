@@ -54,18 +54,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Resolve the Convex user from Clerk ID
-    const user = await convex.query(api.users.getByClerkId, {
-      clerkId: clerkUserId,
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 403 });
-    }
-
-    // Verify project ownership
-    const project = await convex.query(api.projects.getById, {
+    // Verify project ownership using clerkId-based query (works without ctx.auth)
+    const project = await convex.query(api.projects.getByIdForApiRoute, {
       projectId: projectId as Id<"projects">,
+      clerkId: clerkUserId,
     });
 
     if (!project) {
@@ -75,9 +67,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify document belongs to project
-    const document = await convex.query(api.documents.getById, {
+    // Verify document belongs to project using clerkId-based query (works without ctx.auth)
+    const document = await convex.query(api.documents.getByIdForApiRoute, {
       documentId: documentId as Id<"documents">,
+      clerkId: clerkUserId,
     });
 
     if (!document) {
@@ -95,16 +88,6 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    // Build system prompt with document context
-    const systemPrompt = buildDocumentEditPrompt(
-      {
-        title: document.title,
-        content: documentContent, // Use the passed content (may have unsaved edits)
-        type: document.type,
-      },
-      selectionContext
-    );
 
     // Format messages for Claude API
     const claudeMessages: Anthropic.MessageParam[] = (messageHistory || [])
@@ -136,10 +119,21 @@ export async function POST(request: NextRequest) {
           let continueLoop = true;
 
           while (continueLoop) {
+            // Rebuild system prompt with current document content on each iteration
+            // This ensures the AI sees the latest content after tool-driven edits
+            const loopSystemPrompt = buildDocumentEditPrompt(
+              {
+                title: document.title,
+                content: currentDocumentContent,
+                type: document.type,
+              },
+              selectionContext
+            );
+
             const response = await anthropic.messages.create({
               model: "claude-sonnet-4-20250514",
               max_tokens: 4096,
-              system: systemPrompt,
+              system: loopSystemPrompt,
               messages: currentMessages,
               tools: DOCUMENT_EDIT_TOOLS,
               stream: true,
@@ -225,12 +219,13 @@ export async function POST(request: NextRequest) {
               if (result.success) {
                 currentDocumentContent = result.newContent;
 
-                // Send document update marker to client
-                controller.enqueue(
-                  encoder.encode(
-                    `\n\n<!-- DOCUMENT_UPDATE:${JSON.stringify({ content: result.newContent })} -->\n\n`
-                  )
-                );
+                // Send document update as JSONL (one JSON object per line)
+                // This is safer than HTML comments which can break if content contains -->
+                const updatePayload = JSON.stringify({
+                  type: "DOCUMENT_UPDATE",
+                  content: result.newContent,
+                });
+                controller.enqueue(encoder.encode(`\n${updatePayload}\n`));
 
                 toolResult = result.message;
               } else {

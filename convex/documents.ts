@@ -282,3 +282,36 @@ export const getContextForProject = query({
     }));
   },
 });
+
+// Internal query for API routes - get document by ID with clerkId for ownership validation
+// This is used by server-side API routes where ctx.auth is not available
+export const getByIdForApiRoute = query({
+  args: {
+    documentId: v.id("documents"),
+    clerkId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Look up user by clerkId
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
+
+    if (!user) {
+      return null;
+    }
+
+    const doc = await ctx.db.get(args.documentId);
+    if (!doc) {
+      return null;
+    }
+
+    // Verify ownership through project
+    const project = await ctx.db.get(doc.projectId);
+    if (!project || project.userId !== user._id) {
+      return null;
+    }
+
+    return doc;
+  },
+});
