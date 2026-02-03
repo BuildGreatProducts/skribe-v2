@@ -22,10 +22,22 @@ interface ChatMessage {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId: clerkUserId } = await auth();
-    if (!clerkUserId) {
+    const authResult = await auth();
+    if (!authResult.userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Get Clerk JWT token to authenticate with Convex
+    const token = await authResult.getToken({ template: "convex" });
+    if (!token) {
+      return NextResponse.json(
+        { error: "Failed to get authentication token" },
+        { status: 401 }
+      );
+    }
+
+    // Set the auth token on the Convex client
+    convex.setAuth(token);
 
     const body = await request.json();
     const {
@@ -54,10 +66,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify project ownership using clerkId-based query (works without ctx.auth)
-    const project = await convex.query(api.projects.getByIdForApiRoute, {
+    // Verify project ownership using authenticated query
+    const project = await convex.query(api.projects.getById, {
       projectId: projectId as Id<"projects">,
-      clerkId: clerkUserId,
     });
 
     if (!project) {
@@ -67,10 +78,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify document belongs to project using clerkId-based query (works without ctx.auth)
-    const document = await convex.query(api.documents.getByIdForApiRoute, {
+    // Verify document belongs to project using authenticated query
+    const document = await convex.query(api.documents.getById, {
       documentId: documentId as Id<"documents">,
-      clerkId: clerkUserId,
     });
 
     if (!document) {

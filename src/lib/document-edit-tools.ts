@@ -142,12 +142,36 @@ export function executeDocumentTool(
     case "find_and_replace":
       return handleFindAndReplace(documentContent, toolInput);
 
-    case "rewrite_document":
+    case "rewrite_document": {
+      // Validate new_content is a string
+      if (
+        toolInput.new_content === undefined ||
+        toolInput.new_content === null
+      ) {
+        return {
+          success: false,
+          newContent: documentContent,
+          message: "Missing new_content parameter for document rewrite.",
+        };
+      }
+      if (typeof toolInput.new_content !== "string") {
+        return {
+          success: false,
+          newContent: documentContent,
+          message: "new_content must be a string.",
+        };
+      }
+      // summary is optional but if provided should be a string
+      const summary =
+        typeof toolInput.summary === "string"
+          ? toolInput.summary
+          : "Document rewritten";
       return {
         success: true,
-        newContent: toolInput.new_content as string,
-        message: (toolInput.summary as string) || "Document rewritten",
+        newContent: toolInput.new_content,
+        message: summary,
       };
+    }
 
     default:
       return {
@@ -243,8 +267,40 @@ function handleInsertAtPosition(
   content: string,
   input: Record<string, unknown>
 ): ToolExecutionResult {
-  const position = input.position as string;
-  const insertContent = input.content as string;
+  // Validate position parameter
+  if (input.position === undefined || input.position === null) {
+    return {
+      success: false,
+      newContent: content,
+      message: "Missing position parameter.",
+    };
+  }
+  if (typeof input.position !== "string") {
+    return {
+      success: false,
+      newContent: content,
+      message: "position must be a string.",
+    };
+  }
+
+  // Validate content parameter
+  if (input.content === undefined || input.content === null) {
+    return {
+      success: false,
+      newContent: content,
+      message: "Missing content parameter.",
+    };
+  }
+  if (typeof input.content !== "string") {
+    return {
+      success: false,
+      newContent: content,
+      message: "content must be a string.",
+    };
+  }
+
+  const position = input.position;
+  const insertContent = input.content;
 
   if (position === "start") {
     return {
@@ -321,8 +377,40 @@ function handleReplaceSection(
   content: string,
   input: Record<string, unknown>
 ): ToolExecutionResult {
-  const sectionHeading = input.section_heading as string;
-  const newContent = input.new_content as string;
+  // Validate section_heading parameter
+  if (input.section_heading === undefined || input.section_heading === null) {
+    return {
+      success: false,
+      newContent: content,
+      message: "Missing section_heading parameter.",
+    };
+  }
+  if (typeof input.section_heading !== "string") {
+    return {
+      success: false,
+      newContent: content,
+      message: "section_heading must be a string.",
+    };
+  }
+
+  // Validate new_content parameter
+  if (input.new_content === undefined || input.new_content === null) {
+    return {
+      success: false,
+      newContent: content,
+      message: "Missing new_content parameter.",
+    };
+  }
+  if (typeof input.new_content !== "string") {
+    return {
+      success: false,
+      newContent: content,
+      message: "new_content must be a string.",
+    };
+  }
+
+  const sectionHeading = input.section_heading;
+  const newContent = input.new_content;
 
   // Find the section heading
   const headingRegex = new RegExp(
@@ -363,9 +451,43 @@ function handleFindAndReplace(
   content: string,
   input: Record<string, unknown>
 ): ToolExecutionResult {
-  const findText = input.find_text as string;
-  const replaceWith = input.replace_with as string;
-  const replaceAll = (input.replace_all as boolean) || false;
+  // Validate find_text parameter
+  if (input.find_text === undefined || input.find_text === null) {
+    return {
+      success: false,
+      newContent: content,
+      message: "Missing find_text parameter.",
+    };
+  }
+  if (typeof input.find_text !== "string") {
+    return {
+      success: false,
+      newContent: content,
+      message: "find_text must be a string.",
+    };
+  }
+
+  // Validate replace_with parameter
+  if (input.replace_with === undefined || input.replace_with === null) {
+    return {
+      success: false,
+      newContent: content,
+      message: "Missing replace_with parameter.",
+    };
+  }
+  if (typeof input.replace_with !== "string") {
+    return {
+      success: false,
+      newContent: content,
+      message: "replace_with must be a string.",
+    };
+  }
+
+  // replace_all is optional boolean, default to false
+  const findText = input.find_text;
+  const replaceWith = input.replace_with;
+  const replaceAll =
+    typeof input.replace_all === "boolean" ? input.replace_all : false;
 
   if (!content.includes(findText)) {
     return {

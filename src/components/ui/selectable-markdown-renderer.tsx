@@ -22,7 +22,11 @@ export function SelectableMarkdownRenderer({
   });
 
   const html = useMemo(() => {
-    let result = content;
+    // First, escape HTML entities to preserve literal < and > characters
+    let result = content
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
     // Headers
     result = result.replace(
