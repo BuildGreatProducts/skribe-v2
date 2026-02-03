@@ -36,25 +36,19 @@ export function AppShell({ projectId, children }: AppShellProps) {
   return (
     <div className="flex min-h-screen bg-muted">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 z-30 flex h-full w-64 flex-col border-r border-border bg-white">
+      <aside className="fixed left-0 top-0 z-30 flex h-full w-64 flex-col bg-white shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_12px_-4px_rgb(0_0_0/0.05)]">
         {/* Logo */}
-        <div className="border-b border-border px-4 py-4">
+        <div className="px-4 py-4">
           <Link href={`/p/${projectId}`} className="flex items-center gap-2">
-            <span className="font-serif text-xl font-bold text-primary">Skribe</span>
+            <span className="logo-text text-xl text-foreground">Skribe</span>
           </Link>
         </div>
 
         {/* Project Selector */}
         <ProjectSelector currentProjectId={projectId} />
 
-        {/* Divider */}
-        <div className="mx-3 border-t border-border" />
-
         {/* Navigation */}
         <SidebarNav projectId={projectId} />
-
-        {/* Divider */}
-        <div className="mx-3 border-t border-border" />
 
         {/* Recent Agents */}
         <div className="flex-1 overflow-y-auto">

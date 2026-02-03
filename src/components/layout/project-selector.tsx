@@ -82,7 +82,7 @@ export function ProjectSelector({ currentProjectId }: ProjectSelectorProps) {
                 onClick={() => handleSelectProject(project._id)}
                 className={cn(
                   "flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted",
-                  project._id === currentProjectId && "bg-primary-light"
+                  project._id === currentProjectId && "bg-muted"
                 )}
               >
                 <div className="min-w-0 flex-1">
@@ -94,7 +94,7 @@ export function ProjectSelector({ currentProjectId }: ProjectSelectorProps) {
                   )}
                 </div>
                 {project._id === currentProjectId && (
-                  <CheckIcon className="h-4 w-4 flex-shrink-0 text-primary" />
+                  <CheckIcon className="h-4 w-4 flex-shrink-0 text-foreground" />
                 )}
               </button>
             ))}
@@ -102,7 +102,7 @@ export function ProjectSelector({ currentProjectId }: ProjectSelectorProps) {
           <div className="border-t border-border p-1">
             <button
               onClick={handleNewProject}
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-primary transition-colors hover:bg-primary-light"
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
             >
               <PlusIcon className="h-4 w-4" />
               New Project

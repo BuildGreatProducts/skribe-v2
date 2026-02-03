@@ -68,14 +68,14 @@ export default function OnboardingPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 text-center">
-          <h1 className="font-serif text-3xl font-bold text-primary">Skribe</h1>
+          <h1 className="logo-text text-3xl text-foreground">Skribe</h1>
           <p className="mt-2 text-muted-foreground">Your AI-Powered Strategic Advisor</p>
         </div>
 
         <Card>
           <CardHeader className="text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-light">
-              <RocketIcon className="h-8 w-8 text-primary" />
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-pastel-mint">
+              <RocketIcon className="h-8 w-8 text-foreground" />
             </div>
             <CardTitle>Welcome to Skribe!</CardTitle>
             <p className="text-sm text-muted-foreground mt-2">
@@ -123,7 +123,7 @@ export default function OnboardingPage() {
             {/* Trial info */}
             <div className="mt-6 pt-6 border-t border-border">
               <div className="flex items-start gap-3">
-                <SparklesIcon className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                <SparklesIcon className="h-5 w-5 text-foreground flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">3-Day Free Trial</p>
                   <p className="text-xs text-muted-foreground mt-1">

@@ -90,7 +90,7 @@ export default function HomePage() {
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2">
-            <span className="font-serif text-2xl font-bold text-primary">
+            <span className="logo-text text-2xl text-foreground">
               Skribe
             </span>
           </Link>
@@ -109,12 +109,12 @@ export default function HomePage() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-primary-light to-white py-24">
+      <section className="relative overflow-hidden bg-gradient-to-b from-pastel-lavender/40 to-white py-24">
         <div className="mx-auto max-w-7xl px-6">
           <div className="mx-auto max-w-3xl text-center">
-            <h1 className="font-serif text-5xl font-bold leading-tight text-foreground md:text-6xl">
+            <h1 className="font-serif text-5xl leading-tight text-foreground md:text-6xl">
               Your AI-Powered
-              <span className="text-primary"> Strategic Advisor</span>
+              <span className="text-foreground"> Strategic Advisor</span>
             </h1>
             <p className="mt-6 text-xl text-muted-foreground">
               Create comprehensive project context documents through guided,
@@ -155,9 +155,9 @@ export default function HomePage() {
             {STARTING_POINTS.map((point, index) => (
               <div
                 key={index}
-                className="rounded-2xl border border-border bg-white p-6 shadow-md transition-all hover:shadow-lg hover:border-primary/30"
+                className="rounded-2xl border border-border bg-white p-6 shadow-md transition-all hover:shadow-lg hover:border-foreground/20"
               >
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-light text-2xl">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-pastel-sky text-2xl">
                   {point.icon}
                 </div>
                 <h3 className="font-serif text-xl font-semibold text-foreground">
@@ -181,10 +181,10 @@ export default function HomePage() {
 
           <div className="mt-16 grid gap-8 md:grid-cols-3">
             <div className="text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-2xl font-bold text-white">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-pastel-rose text-2xl font-semibold text-foreground">
                 1
               </div>
-              <h3 className="font-serif text-xl font-semibold">
+              <h3 className="font-serif text-xl">
                 Connect Your Project
               </h3>
               <p className="mt-2 text-muted-foreground">
@@ -193,10 +193,10 @@ export default function HomePage() {
               </p>
             </div>
             <div className="text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-2xl font-bold text-white">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-pastel-mint text-2xl font-semibold text-foreground">
                 2
               </div>
-              <h3 className="font-serif text-xl font-semibold">
+              <h3 className="font-serif text-xl">
                 Chat with AI Advisor
               </h3>
               <p className="mt-2 text-muted-foreground">
@@ -205,10 +205,10 @@ export default function HomePage() {
               </p>
             </div>
             <div className="text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary text-2xl font-bold text-white">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-pastel-lavender text-2xl font-semibold text-foreground">
                 3
               </div>
-              <h3 className="font-serif text-xl font-semibold">
+              <h3 className="font-serif text-xl">
                 Generate & Sync Documents
               </h3>
               <p className="mt-2 text-muted-foreground">
@@ -238,12 +238,12 @@ export default function HomePage() {
                 key={index}
                 className={`relative rounded-2xl border p-8 ${
                   tier.popular
-                    ? "border-primary bg-primary-light/30 shadow-lg"
+                    ? "border-foreground/20 bg-pastel-lemon/30 shadow-lg"
                     : "border-border bg-white shadow-md"
                 }`}
               >
                 {tier.popular && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-secondary px-4 py-1 text-sm font-medium text-white">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-foreground px-4 py-1 text-sm font-medium text-white">
                     Most Popular
                   </div>
                 )}
@@ -260,7 +260,7 @@ export default function HomePage() {
                 <ul className="mt-8 space-y-3">
                   {tier.features.map((feature, i) => (
                     <li key={i} className="flex items-center gap-3">
-                      <CheckIcon className="h-5 w-5 text-primary" />
+                      <CheckIcon className="h-5 w-5 text-foreground" />
                       <span>{feature}</span>
                     </li>
                   ))}
@@ -281,12 +281,12 @@ export default function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="bg-primary py-24">
+      <section className="bg-foreground py-24">
         <div className="mx-auto max-w-7xl px-6 text-center">
-          <h2 className="font-serif text-4xl font-bold text-white">
+          <h2 className="font-serif text-4xl text-white">
             Ready to build with clarity?
           </h2>
-          <p className="mt-4 text-xl text-primary-light">
+          <p className="mt-4 text-xl text-white/70">
             Start your free trial today and let AI help you think through every
             aspect of your project.
           </p>
@@ -294,7 +294,7 @@ export default function HomePage() {
             <Link href="/sign-up">
               <Button
                 size="lg"
-                className="bg-white text-primary hover:bg-primary-light"
+                className="bg-white text-foreground hover:bg-white/90"
               >
                 Get Started Free
               </Button>
@@ -308,7 +308,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-6">
           <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
             <div className="flex items-center gap-2">
-              <span className="font-serif text-xl font-bold text-primary">
+              <span className="logo-text text-xl text-foreground">
                 Skribe
               </span>
             </div>

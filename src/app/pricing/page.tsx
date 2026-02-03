@@ -63,7 +63,7 @@ function PricingPageSkeleton() {
     <div className="min-h-screen bg-muted">
       <header className="border-b border-border bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/" className="font-serif text-2xl font-bold text-primary">
+          <Link href="/" className="logo-text text-2xl text-foreground">
             Skribe
           </Link>
           <div className="h-10 w-24 animate-pulse rounded-xl bg-muted"></div>
@@ -138,7 +138,7 @@ function PricingPageContent() {
       {/* Header */}
       <header className="border-b border-border bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/" className="font-serif text-2xl font-bold text-primary">
+          <Link href="/" className="logo-text text-2xl text-foreground">
             Skribe
           </Link>
           <div className="flex items-center gap-4">
