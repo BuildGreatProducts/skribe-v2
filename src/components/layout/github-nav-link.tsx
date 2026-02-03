@@ -46,7 +46,22 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
   }
 
   const isGitHubConnected = storedUser?.githubConnected ?? false;
-  const hasLinkedRepo = !!currentProject.githubRepoUrl;
+
+  // Validate URL to prevent dangerous schemes (e.g., javascript:)
+  const validatedRepoUrl = (() => {
+    if (!currentProject.githubRepoUrl) return null;
+    try {
+      const url = new URL(currentProject.githubRepoUrl);
+      if (url.protocol === "https:" || url.protocol === "http:") {
+        return url.href;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const hasLinkedRepo = !!validatedRepoUrl;
 
   // State 1: GitHub not connected - show connect link
   if (!isGitHubConnected) {
@@ -64,11 +79,11 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
   }
 
   // State 2: GitHub connected + repo linked - show repo link
-  if (hasLinkedRepo) {
+  if (hasLinkedRepo && validatedRepoUrl) {
     return (
       <div className="px-3 py-1">
         <a
-          href={currentProject.githubRepoUrl}
+          href={validatedRepoUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
