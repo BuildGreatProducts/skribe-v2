@@ -67,6 +67,8 @@ See `.env.example` for required variables:
 
 ## Design System
 
-- Fonts: IBM Plex Serif (headings), Helvetica (body)
-- Colors: Light mode, dark green primary, lime green secondary
-- Style: Rounded corners (lg/xl), soft shadows
+- Fonts: Instrument Serif (headings), DM Sans (body)
+- Logo: Instrument Serif italic with tight letter spacing (-0.03em)
+- Colors: Light mode, black primary (#171717) for buttons, soft pastel accent palette
+- Pastel palette: Rose (#FFD6E0), Lavender (#E0D6FF), Sky (#D6EFFF), Mint (#D6FFE4), Peach (#FFE5D6), Lemon (#FFF5D6)
+- Style: Rounded corners (lg/xl), soft shadows, borderless sidebar navigation
