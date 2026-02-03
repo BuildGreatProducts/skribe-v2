@@ -17,8 +17,13 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
     currentProjectId ? { projectId: currentProjectId as Id<"projects"> } : "skip"
   );
 
-  // Loading state
-  if (isUserLoading || currentProject === undefined) {
+  // No project ID provided - don't render anything
+  if (!currentProjectId) {
+    return null;
+  }
+
+  // User still loading
+  if (isUserLoading) {
     return (
       <div className="px-3 py-1">
         <div className="h-8 animate-pulse rounded-md bg-muted"></div>
@@ -26,8 +31,22 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
     );
   }
 
+  // Project query still loading
+  if (currentProject === undefined) {
+    return (
+      <div className="px-3 py-1">
+        <div className="h-8 animate-pulse rounded-md bg-muted"></div>
+      </div>
+    );
+  }
+
+  // Project not found
+  if (currentProject === null) {
+    return null;
+  }
+
   const isGitHubConnected = storedUser?.githubConnected ?? false;
-  const hasLinkedRepo = !!currentProject?.githubRepoUrl;
+  const hasLinkedRepo = !!currentProject.githubRepoUrl;
 
   // State 1: GitHub not connected - show connect link
   if (!isGitHubConnected) {
