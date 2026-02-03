@@ -1,6 +1,7 @@
 "use client";
 
 import { ProjectSelector } from "./project-selector";
+import { GitHubNavLink } from "./github-nav-link";
 import { SidebarNav } from "./sidebar-nav";
 import { RecentAgentsList } from "./recent-agents-list";
 import { UserNav } from "./user-nav";
@@ -46,6 +47,9 @@ export function AppShell({ projectId, children }: AppShellProps) {
 
         {/* Project Selector */}
         <ProjectSelector currentProjectId={projectId} />
+
+        {/* GitHub Link */}
+        <GitHubNavLink currentProjectId={projectId} />
 
         {/* Navigation */}
         <SidebarNav projectId={projectId} />
