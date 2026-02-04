@@ -23,12 +23,35 @@ interface DocumentEvent {
   message?: string;
 }
 
+// Types for web search events
+interface WebSearchStartedEvent {
+  type: "WEB_SEARCH_STARTED";
+  query?: string;
+}
+
+interface WebSearchCitation {
+  url: string;
+  title: string;
+  citedText: string;
+}
+
+interface WebSearchCitationsEvent {
+  type: "WEB_SEARCH_CITATIONS";
+  citations: WebSearchCitation[];
+}
+
+type StreamEvent = DocumentEvent | WebSearchStartedEvent | WebSearchCitationsEvent;
+
 // Parse JSONL markers from message content
-function parseDocumentEvents(content: string): {
+function parseMessageEvents(content: string): {
   cleanContent: string;
-  events: DocumentEvent[];
+  documentEvents: DocumentEvent[];
+  citations: WebSearchCitation[];
+  hasWebSearch: boolean;
 } {
-  const events: DocumentEvent[] = [];
+  const documentEvents: DocumentEvent[] = [];
+  const citations: WebSearchCitation[] = [];
+  let hasWebSearch = false;
   const lines = content.split("\n");
   const cleanLines: string[] = [];
 
@@ -36,14 +59,21 @@ function parseDocumentEvents(content: string): {
     const trimmed = line.trim();
     if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
       try {
-        const parsed = JSON.parse(trimmed);
+        const parsed = JSON.parse(trimmed) as StreamEvent;
         if (
           parsed.type === "DOCUMENT_CREATED" ||
           parsed.type === "DOCUMENT_UPDATED" ||
           parsed.type === "DOCUMENT_EDIT"
         ) {
-          events.push(parsed as DocumentEvent);
+          documentEvents.push(parsed as DocumentEvent);
           continue; // Don't add this line to clean content
+        } else if (parsed.type === "WEB_SEARCH_STARTED") {
+          hasWebSearch = true;
+          continue;
+        } else if (parsed.type === "WEB_SEARCH_CITATIONS") {
+          const citationEvent = parsed as WebSearchCitationsEvent;
+          citations.push(...citationEvent.citations);
+          continue;
         }
       } catch {
         // Not valid JSON, treat as regular content
@@ -54,7 +84,9 @@ function parseDocumentEvents(content: string): {
 
   return {
     cleanContent: cleanLines.join("\n").trim(),
-    events,
+    documentEvents,
+    citations,
+    hasWebSearch,
   };
 }
 
@@ -491,15 +523,23 @@ function MessageBubble({
     return null;
   }
 
-  // Parse document events from assistant messages
-  const { cleanContent, events } = isUser
-    ? { cleanContent: message.content, events: [] }
-    : parseDocumentEvents(message.content);
+  // Parse document events and citations from assistant messages
+  const { cleanContent, documentEvents, citations, hasWebSearch } = isUser
+    ? { cleanContent: message.content, documentEvents: [], citations: [], hasWebSearch: false }
+    : parseMessageEvents(message.content);
 
   // Separate document cards (created/updated) from edit notifications
-  const documentCards = events.filter(
+  const documentCards = documentEvents.filter(
     (e) => e.type === "DOCUMENT_CREATED" || e.type === "DOCUMENT_UPDATED"
   );
+
+  // Deduplicate citations by URL
+  const uniqueCitations = citations.reduce((acc, citation) => {
+    if (!acc.find((c) => c.url === citation.url)) {
+      acc.push(citation);
+    }
+    return acc;
+  }, [] as WebSearchCitation[]);
 
   return (
     <div className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -513,6 +553,14 @@ function MessageBubble({
         </span>
       </div>
       <div className="max-w-[80%] space-y-2">
+        {/* Web search indicator */}
+        {hasWebSearch && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <SearchIcon className="h-3 w-3" />
+            <span>Searched the web</span>
+          </div>
+        )}
+
         {/* Main message content */}
         {cleanContent && (
           <div
@@ -524,6 +572,35 @@ function MessageBubble({
           >
             <div className="prose prose-sm max-w-none">
               <MarkdownRenderer content={cleanContent} isUser={isUser} />
+            </div>
+          </div>
+        )}
+
+        {/* Render citations from web search */}
+        {uniqueCitations.length > 0 && (
+          <div className="rounded-xl bg-sky-50 p-3 border border-sky-100">
+            <div className="flex items-center gap-2 mb-2">
+              <GlobeIcon className="h-4 w-4 text-sky-600" />
+              <span className="text-xs font-medium text-sky-700">Sources</span>
+            </div>
+            <div className="space-y-1.5">
+              {uniqueCitations.slice(0, 5).map((citation, index) => (
+                <a
+                  key={`${citation.url}-${index}`}
+                  href={citation.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-xs text-sky-600 hover:text-sky-800 hover:underline truncate"
+                  title={citation.title || citation.url}
+                >
+                  {citation.title || new URL(citation.url).hostname}
+                </a>
+              ))}
+              {uniqueCitations.length > 5 && (
+                <span className="text-xs text-sky-500">
+                  +{uniqueCitations.length - 5} more sources
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -661,6 +738,45 @@ function AgentIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
     >
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  );
+}
+
+function GlobeIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+      <path d="M2 12h20" />
     </svg>
   );
 }
