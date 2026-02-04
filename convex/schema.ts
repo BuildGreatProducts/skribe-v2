@@ -40,11 +40,13 @@ export default defineSchema({
     githubRepoId: v.optional(v.string()),
     githubRepoName: v.optional(v.string()),
     githubRepoUrl: v.optional(v.string()),
+    feedbackApiKey: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_user", ["userId"])
-    .index("by_github_repo", ["githubRepoId"]),
+    .index("by_github_repo", ["githubRepoId"])
+    .index("by_feedback_api_key", ["feedbackApiKey"]),
 
   documents: defineTable({
     projectId: v.id("projects"),
@@ -113,4 +115,18 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  feedback: defineTable({
+    projectId: v.id("projects"),
+    content: v.string(),
+    email: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    source: v.string(),
+    category: v.optional(v.string()),
+    sentiment: v.optional(v.string()),
+    processed: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_project_and_date", ["projectId", "createdAt"]),
 });

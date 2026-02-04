@@ -12,6 +12,7 @@ const documentTypes = v.union(
   v.literal("feature"),
   v.literal("tech"),
   v.literal("gtm"),
+  v.literal("landing"),
   v.literal("custom")
 );
 
