@@ -90,6 +90,7 @@ export default defineSchema({
       v.literal("create_prd"),
       v.literal("go_to_market"),
       v.literal("landing_page"),
+      v.literal("feedback_analysis"),
       v.literal("custom")
     ),
     title: v.string(),
