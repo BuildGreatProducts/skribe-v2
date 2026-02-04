@@ -7,6 +7,7 @@ import { RecentAgentsList } from "./recent-agents-list";
 import { UserNav } from "./user-nav";
 import { useStoreUser } from "@/hooks/use-store-user";
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 
 interface AppShellProps {
@@ -37,10 +38,11 @@ export function AppShell({ projectId, children }: AppShellProps) {
   return (
     <div className="flex min-h-screen bg-muted">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 z-30 flex h-full w-64 flex-col bg-white shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_12px_-4px_rgb(0_0_0/0.05)]">
+      <aside className="fixed left-4 top-4 bottom-4 z-30 flex w-64 flex-col bg-white rounded-2xl shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_12px_-4px_rgb(0_0_0/0.05)]">
         {/* Logo */}
         <div className="px-4 py-4">
           <Link href={`/p/${projectId}`} className="flex items-center gap-2">
+            <Image src="/logo.png" alt="Skribe" width={29} height={29} className="h-[29px] w-auto" />
             <span className="logo-text text-xl text-foreground">Skribe</span>
           </Link>
         </div>
@@ -64,21 +66,23 @@ export function AppShell({ projectId, children }: AppShellProps) {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 pl-64">
+      <div className="flex-1 pl-72 pt-4 pr-8">
         {/* Trial Banner */}
         {isOnTrial && trialDaysLeft > 0 && (
-          <div className="bg-warning/10 border-b border-warning/30 px-6 py-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-warning">
-                <span className="font-medium">{trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""}</span>{" "}
-                left in your free trial
-              </p>
-              <Link
-                href="/pricing"
-                className="text-sm font-medium text-warning underline hover:no-underline"
-              >
-                Upgrade now
-              </Link>
+          <div className="mx-8">
+            <div className="bg-warning/10 border border-warning/30 px-6 py-2 rounded-xl">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-warning">
+                  <span className="font-medium">{trialDaysLeft} day{trialDaysLeft !== 1 ? "s" : ""}</span>{" "}
+                  left in your free trial
+                </p>
+                <Link
+                  href="/pricing"
+                  className="text-sm font-medium text-warning underline hover:no-underline"
+                >
+                  Upgrade now
+                </Link>
+              </div>
             </div>
           </div>
         )}

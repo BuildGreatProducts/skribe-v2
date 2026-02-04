@@ -346,7 +346,7 @@ export default function AgentPage() {
       }}
     >
       {/* Header */}
-      <header className="border-b border-border bg-white px-6 py-4">
+      <header className="px-6 py-4">
         <div className="flex items-center gap-4">
           <div className="flex-1 min-w-0">
             <h1 className="font-serif text-xl font-semibold truncate">
@@ -356,20 +356,15 @@ export default function AgentPage() {
               {project?.name}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-full bg-primary-light px-3 py-1 text-xs font-medium text-primary">
-              {agentData.type.replace(/_/g, " ")}
-            </span>
-            {agentData.type === "custom" && (
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                className="rounded-lg p-2 hover:bg-muted transition-colors"
-                aria-label="Edit agent settings"
-              >
-                <SettingsIcon className="h-5 w-5 text-muted-foreground" />
-              </button>
-            )}
-          </div>
+          {agentData.type === "custom" && (
+            <button
+              onClick={() => setIsEditModalOpen(true)}
+              className="rounded-lg p-2 hover:bg-white/50 transition-colors"
+              aria-label="Edit agent settings"
+            >
+              <SettingsIcon className="h-5 w-5 text-muted-foreground" />
+            </button>
+          )}
         </div>
       </header>
 
@@ -421,53 +416,57 @@ export default function AgentPage() {
       </div>
 
       {/* Input */}
-      <div className="border-t border-border bg-white px-6 py-4">
-        {/* Selection context chip */}
-        {selectionContext && (
-          <div className="mx-auto max-w-3xl mb-3">
-            <SelectionContextChip
-              selection={{
-                text: selectionContext.text,
-                startOffset: selectionContext.startOffset,
-                endOffset: selectionContext.endOffset,
-                contentSnapshot: activeDocumentContent,
-              }}
-              onClear={handleClearSelection}
-            />
-          </div>
-        )}
+      <div className="px-6 pb-4">
+        <div className="mx-auto max-w-3xl">
+          {/* Selection context chip */}
+          {selectionContext && (
+            <div className="mb-3">
+              <SelectionContextChip
+                selection={{
+                  text: selectionContext.text,
+                  startOffset: selectionContext.startOffset,
+                  endOffset: selectionContext.endOffset,
+                  contentSnapshot: activeDocumentContent,
+                }}
+                onClear={handleClearSelection}
+              />
+            </div>
+          )}
 
-        <form
-          onSubmit={handleSubmit}
-          className="mx-auto flex max-w-3xl items-end gap-3"
-        >
-          <div className="flex-1">
-            <Textarea
-              ref={textareaRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                selectionContext
-                  ? "Ask about or edit the selected text..."
-                  : "Type your message..."
-              }
-              rows={1}
-              className="min-h-[44px] max-h-32 resize-none"
-              disabled={isSubmitting}
-            />
+          <div className="bg-white rounded-2xl shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_12px_-4px_rgb(0_0_0/0.05)] p-4">
+            <form
+              onSubmit={handleSubmit}
+              className="flex items-end gap-3"
+            >
+              <div className="flex-1">
+                <Textarea
+                  ref={textareaRef}
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={
+                    selectionContext
+                      ? "Ask about or edit the selected text..."
+                      : "Type your message..."
+                  }
+                  rows={1}
+                  className="min-h-[44px] max-h-32 resize-none border-0 shadow-none focus:ring-0"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={!inputValue.trim() || isSubmitting}
+                isLoading={isSubmitting}
+              >
+                <SendIcon className="h-5 w-5" />
+              </Button>
+            </form>
+            <p className="mt-2 text-xs text-muted-foreground text-center">
+              Press Enter to send, Shift+Enter for new line
+            </p>
           </div>
-          <Button
-            type="submit"
-            disabled={!inputValue.trim() || isSubmitting}
-            isLoading={isSubmitting}
-          >
-            <SendIcon className="h-5 w-5" />
-          </Button>
-        </form>
-        <p className="mx-auto max-w-3xl mt-2 text-xs text-muted-foreground text-center">
-          Press Enter to send, Shift+Enter for new line
-        </p>
+        </div>
       </div>
 
       {/* Edit Agent Modal */}

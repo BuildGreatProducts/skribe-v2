@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import Link from "next/link";
+import Image from "next/image";
 import { useStoreUser } from "@/hooks/use-store-user";
 
 const PRICING_TIERS = [
@@ -63,8 +64,9 @@ function PricingPageSkeleton() {
     <div className="min-h-screen bg-muted">
       <header className="border-b border-border bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/" className="logo-text text-2xl text-foreground">
-            Skribe
+          <Link href="/" className="flex items-center gap-2">
+            <Image src="/logo.png" alt="Skribe" width={28} height={28} className="h-7 w-auto" />
+            <span className="logo-text text-2xl text-foreground">Skribe</span>
           </Link>
           <div className="h-10 w-24 animate-pulse rounded-xl bg-muted"></div>
         </div>
@@ -138,8 +140,9 @@ function PricingPageContent() {
       {/* Header */}
       <header className="border-b border-border bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/" className="logo-text text-2xl text-foreground">
-            Skribe
+          <Link href="/" className="flex items-center gap-2">
+            <Image src="/logo.png" alt="Skribe" width={28} height={28} className="h-7 w-auto" />
+            <span className="logo-text text-2xl text-foreground">Skribe</span>
           </Link>
           <div className="flex items-center gap-4">
             {showDashboardLink && (

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui";
 
 const STARTING_POINTS = [
@@ -90,6 +91,7 @@ export default function HomePage() {
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2">
+            <Image src="/logo.png" alt="Skribe" width={28} height={28} className="h-7 w-auto" />
             <span className="logo-text text-2xl text-foreground">
               Skribe
             </span>
@@ -308,6 +310,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-7xl px-6">
           <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
             <div className="flex items-center gap-2">
+              <Image src="/logo.png" alt="Skribe" width={24} height={24} className="h-6 w-auto" />
               <span className="logo-text text-xl text-foreground">
                 Skribe
               </span>

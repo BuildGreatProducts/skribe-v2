@@ -10,6 +10,17 @@ import { useStoreUser } from "@/hooks/use-store-user";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { STARTING_POINTS, AgentType } from "@/lib/starting-points";
 
+// Pastel color palette for starting point icons
+// Each entry: [background (lighter), icon color (darker)]
+const PASTEL_COLORS = [
+  { bg: "bg-[#FFE8ED]", icon: "text-[#C4707F]" },     // Rose
+  { bg: "bg-[#EDE8FF]", icon: "text-[#8B7DC4]" },     // Lavender
+  { bg: "bg-[#E8F5FF]", icon: "text-[#6BA3C4]" },     // Sky
+  { bg: "bg-[#E8FFEE]", icon: "text-[#5FC47F]" },     // Mint
+  { bg: "bg-[#FFEFE8]", icon: "text-[#C49070]" },     // Peach
+  { bg: "bg-[#FFFBE8]", icon: "text-[#C4A85F]" },     // Lemon
+] as const;
+
 export default function NewAgentPage() {
   const params = useParams();
   const router = useRouter();
@@ -198,11 +209,8 @@ export default function NewAgentPage() {
       {/* Page Header */}
       <div className="mb-8">
         <h1 className="font-serif text-2xl font-bold text-foreground">
-          Start a new conversation
+          Create new agent
         </h1>
-        <p className="mt-1 text-muted-foreground">
-          Choose a starting point or start an open conversation to explore any topic
-        </p>
       </div>
 
       {/* Error Banner */}
@@ -221,215 +229,231 @@ export default function NewAgentPage() {
         </div>
       )}
 
-      {/* Starting Points Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {STARTING_POINTS.map((point) => {
-          const isCompleted = completedStartingPoints.has(point.id);
-          const isRecommended = isNewProject && point.order === 1;
+      {/* Agent Templates Section */}
+      <div className="mb-10">
+        <h2 className="text-lg font-medium text-foreground">Agent templates</h2>
+        <p className="mb-4 mt-1 text-sm text-muted-foreground">
+          Pre-configured agents with specialized prompts to guide you through common tasks
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {STARTING_POINTS.map((point, index) => {
+            const isCompleted = completedStartingPoints.has(point.id);
+            const isRecommended = isNewProject && point.order === 1;
+            const colorScheme = PASTEL_COLORS[index % PASTEL_COLORS.length];
 
-          return (
+            return (
+              <Card
+                key={point.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Start ${point.title} agent${isCompleted ? " (completed)" : ""}${isRecommended ? " (recommended)" : ""}`}
+                className={`cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                  isCompleted ? "bg-success/5 border-success/30" : ""
+                } ${isRecommended ? "ring-2 ring-primary ring-offset-2" : ""}`}
+                onClick={() => handleStartAgent(point.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    if (e.key === " ") {
+                      e.preventDefault();
+                    }
+                    handleStartAgent(point.id);
+                  }
+                }}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                        isCompleted ? "bg-success/20" : colorScheme.bg
+                      }`}
+                    >
+                      {isCompleted ? (
+                        <CheckIcon className="h-5 w-5 text-success" />
+                      ) : (
+                        <StartingPointIcon
+                          icon={point.icon}
+                          className={`h-5 w-5 ${colorScheme.icon}`}
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium text-foreground">
+                          {point.title}
+                        </h3>
+                        {isRecommended && (
+                          <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-white">
+                            Start here
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                        {point.description}
+                      </p>
+                    </div>
+                    {isCreatingAgent === point.id && (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+
+          {/* User's Custom Templates */}
+          {templates?.map((template) => (
             <Card
-              key={point.id}
+              key={template._id}
               role="button"
               tabIndex={0}
-              aria-label={`Start ${point.title} agent${isCompleted ? " (completed)" : ""}${isRecommended ? " (recommended)" : ""}`}
-              className={`cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                isCompleted ? "bg-success/5 border-success/30" : ""
-              } ${isRecommended ? "ring-2 ring-primary ring-offset-2" : ""}`}
-              onClick={() => handleStartAgent(point.id)}
+              aria-label={`Use ${template.name} template`}
+              className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 relative group"
+              onClick={() => handleUseTemplate(template)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   if (e.key === " ") {
                     e.preventDefault();
                   }
-                  handleStartAgent(point.id);
+                  handleUseTemplate(template);
                 }
               }}
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                      isCompleted ? "bg-success/20" : "bg-primary-light"
-                    }`}
-                  >
-                    {isCompleted ? (
-                      <CheckIcon className="h-5 w-5 text-success" />
-                    ) : (
-                      <StartingPointIcon
-                        icon={point.icon}
-                        className="h-5 w-5 text-primary"
-                      />
-                    )}
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/20">
+                    <StartingPointIcon icon="sparkles" className="h-5 w-5 text-secondary-foreground" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="font-medium text-foreground">
-                        {point.title}
+                        {template.name}
                       </h3>
-                      {isRecommended && (
-                        <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-medium text-white">
-                          Start here
-                        </span>
-                      )}
+                      <span className="rounded-full bg-secondary/30 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                        Custom
+                      </span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                      {point.description}
+                      {template.description || "Custom agent template"}
                     </p>
                   </div>
-                  {isCreatingAgent === point.id && (
+                  {isCreatingAgent === `template-${template._id}` && (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+                  )}
+                </div>
+                {/* Three-dot menu */}
+                <div className="absolute top-2 right-2" ref={openMenuId === template._id ? menuRef : null}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenMenuId(openMenuId === template._id ? null : template._id);
+                    }}
+                    className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
+                    aria-label="Template options"
+                  >
+                    <MoreVerticalIcon className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                  {openMenuId === template._id && (
+                    <div className="absolute right-0 top-8 z-10 w-32 rounded-lg border bg-white shadow-lg">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          setEditingTemplate(template);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-muted rounded-t-lg"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTemplate(template._id);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10 rounded-b-lg"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   )}
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
+          ))}
+        </div>
+      </div>
 
-        {/* User's Custom Templates */}
-        {templates?.map((template) => (
+      {/* Start from Scratch Section */}
+      <div>
+        <h2 className="text-lg font-medium text-foreground">Start from scratch</h2>
+        <p className="mb-4 mt-1 text-sm text-muted-foreground">
+          Begin with a blank slate or create your own reusable template
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {/* Open Agent Card */}
           <Card
-            key={template._id}
             role="button"
             tabIndex={0}
-            aria-label={`Use ${template.name} template`}
-            className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 relative group"
-            onClick={() => handleUseTemplate(template)}
+            aria-label="Start an open conversation"
+            className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 border-dashed"
+            onClick={handleOpenAgent}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 if (e.key === " ") {
                   e.preventDefault();
                 }
-                handleUseTemplate(template);
+                handleOpenAgent();
               }
             }}
           >
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/20">
-                  <StartingPointIcon icon="sparkles" className="h-5 w-5 text-secondary-foreground" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+                  <MessageCircleIcon className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium text-foreground">
-                      {template.name}
-                    </h3>
-                    <span className="rounded-full bg-secondary/30 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
-                      Template
-                    </span>
-                  </div>
+                  <h3 className="font-medium text-foreground">Open Conversation</h3>
                   <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                    {template.description || "Custom agent template"}
+                    Start a freeform conversation without a specific template
                   </p>
                 </div>
-                {isCreatingAgent === `template-${template._id}` && (
+                {isCreatingAgent === "custom" && (
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                )}
-              </div>
-              {/* Three-dot menu */}
-              <div className="absolute top-2 right-2" ref={openMenuId === template._id ? menuRef : null}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOpenMenuId(openMenuId === template._id ? null : template._id);
-                  }}
-                  className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-                  aria-label="Template options"
-                >
-                  <MoreVerticalIcon className="h-4 w-4 text-muted-foreground" />
-                </button>
-                {openMenuId === template._id && (
-                  <div className="absolute right-0 top-8 z-10 w-32 rounded-lg border bg-white shadow-lg">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuId(null);
-                        setEditingTemplate(template);
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-muted rounded-t-lg"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteTemplate(template._id);
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10 rounded-b-lg"
-                    >
-                      Delete
-                    </button>
-                  </div>
                 )}
               </div>
             </CardContent>
           </Card>
-        ))}
 
-        {/* Open Agent Card */}
-        <Card
-          role="button"
-          tabIndex={0}
-          aria-label="Start an open conversation"
-          className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 border-dashed"
-          onClick={handleOpenAgent}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              if (e.key === " ") {
-                e.preventDefault();
+          {/* Create Template Card */}
+          <Card
+            role="button"
+            tabIndex={0}
+            aria-label="Create a new template"
+            className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 border-dashed"
+            onClick={() => setIsCreateTemplateModalOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                if (e.key === " ") {
+                  e.preventDefault();
+                }
+                setIsCreateTemplateModalOpen(true);
               }
-              handleOpenAgent();
-            }
-          }}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
-                <MessageCircleIcon className="h-5 w-5 text-muted-foreground" />
+            }}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+                  <PlusIcon className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-foreground">Create Template</h3>
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                    Save a custom workflow as a reusable template
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-foreground">Open Conversation</h3>
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                  Start a freeform conversation without a specific template
-                </p>
-              </div>
-              {isCreatingAgent === "custom" && (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Create Template Card */}
-        <Card
-          role="button"
-          tabIndex={0}
-          aria-label="Create a new template"
-          className="cursor-pointer transition-all hover:shadow-lg hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 border-dashed"
-          onClick={() => setIsCreateTemplateModalOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              if (e.key === " ") {
-                e.preventDefault();
-              }
-              setIsCreateTemplateModalOpen(true);
-            }
-          }}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
-                <PlusIcon className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-foreground">Create Template</h3>
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                  Save a custom workflow as a reusable template
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Custom Agent Modal */}
