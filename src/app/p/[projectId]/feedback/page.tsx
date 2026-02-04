@@ -106,6 +106,24 @@ export default function FeedbackPage() {
     );
   }
 
+  if (project === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted">
+        <div className="text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted-foreground/10">
+            <XIcon className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h2 className="mt-4 font-serif text-xl font-bold text-foreground">
+            Project Not Found
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This project doesn&apos;t exist or you don&apos;t have access to it.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-muted px-8 py-8">
       {/* Page Header */}

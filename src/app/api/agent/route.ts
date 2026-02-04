@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
       agentId: agentId as Id<"agents">,
     });
 
-    // Get feedback for feedback_analysis agent
+    // Get feedback for feedback_analysis agent (with 20k character cap)
     let feedbackContext: FeedbackItem[] | undefined;
     if (agent.type === "feedback_analysis") {
       const feedbackList = await convex.query(api.feedback.listByProject, {
@@ -226,14 +226,51 @@ export async function POST(request: NextRequest) {
         limit: 100,
       });
       if (feedbackList && feedbackList.length > 0) {
-        feedbackContext = feedbackList.map((fb) => ({
-          content: fb.content,
-          email: fb.email,
-          source: fb.source,
-          category: fb.category,
-          sentiment: fb.sentiment,
-          createdAt: fb.createdAt,
-        }));
+        const MAX_FEEDBACK_CHARS = 20000;
+        let totalChars = 0;
+        const truncatedFeedback: FeedbackItem[] = [];
+
+        for (const fb of feedbackList) {
+          // Estimate serialized length (content + metadata)
+          const itemLength =
+            fb.content.length +
+            (fb.email?.length || 0) +
+            (fb.source?.length || 0) +
+            (fb.category?.length || 0) +
+            (fb.sentiment?.length || 0) +
+            50; // overhead for formatting
+
+          if (totalChars + itemLength > MAX_FEEDBACK_CHARS) {
+            // Check if we can fit a truncated version
+            const remainingBudget = MAX_FEEDBACK_CHARS - totalChars - 50;
+            if (remainingBudget > 100 && truncatedFeedback.length === 0) {
+              // Truncate content to fit remaining budget if this is the first item
+              truncatedFeedback.push({
+                content: fb.content.slice(0, remainingBudget) + "...",
+                email: fb.email,
+                source: fb.source,
+                category: fb.category,
+                sentiment: fb.sentiment,
+                createdAt: fb.createdAt,
+              });
+            }
+            break;
+          }
+
+          truncatedFeedback.push({
+            content: fb.content,
+            email: fb.email,
+            source: fb.source,
+            category: fb.category,
+            sentiment: fb.sentiment,
+            createdAt: fb.createdAt,
+          });
+          totalChars += itemLength;
+        }
+
+        if (truncatedFeedback.length > 0) {
+          feedbackContext = truncatedFeedback;
+        }
       }
     }
 

@@ -36,10 +36,11 @@ npx convex deploy    # Deploy Convex to production
 - `convex/` - Convex backend (schema, queries, mutations)
 
 ### Data Flow
-1. **Auth**: Clerk middleware (`src/middleware.ts`) protects routes. Public routes: `/`, `/sign-in`, `/sign-up`, `/api/webhooks`, `/api/github/callback`
-2. **Database**: Convex schema defines 5 tables: `users`, `projects`, `documents`, `chats`, `messages` (see `convex/schema.ts`)
-3. **Chat API**: `/api/chat/route.ts` handles streaming Claude responses with document tool use (create_document, update_document)
+1. **Auth**: Clerk middleware (`src/middleware.ts`) protects routes. Public routes: `/`, `/sign-in`, `/sign-up`, `/api/webhooks`, `/api/github/callback`, `/api/feedback`
+2. **Database**: Convex schema defines 7 tables: `users`, `projects`, `documents`, `agents`, `messages`, `agentTemplates`, `feedback` (see `convex/schema.ts`)
+3. **Chat API**: `/api/agent/route.ts` handles streaming Claude responses with document tool use (create_document, update_document)
 4. **GitHub Sync**: Documents pushed to `/Skribe/` folder in connected repos via GitHub API
+5. **Feedback API**: Public webhook endpoint (`/api/feedback/[apiKey]`) receives user feedback from external apps
 
 ### Key Patterns
 
@@ -49,7 +50,7 @@ npx convex deploy    # Deploy Convex to production
 
 **Claude Tool Use**: The chat API provides tools for creating/updating documents. Claude streams responses and can call tools mid-conversation to create documents stored in Convex.
 
-**System Prompts**: 9 guided starting points (idea_refinement, market_validation, customer_persona, brand_strategy, business_model, new_features, tech_stack, create_prd, go_to_market) with specialized system prompts in `src/lib/system-prompts.ts`. Document context is injected via `buildSystemPrompt()`.
+**System Prompts**: 11 guided starting points (idea_refinement, market_validation, customer_persona, brand_strategy, business_model, new_features, tech_stack, create_prd, go_to_market, landing_page, feedback_analysis) with specialized system prompts in `src/lib/system-prompts.ts`. Document and feedback context is injected via `buildSystemPrompt()`.
 
 **Subscription Tiers**: Free trial (3 days), Starter (1 project), Pro (unlimited). Limits enforced in `convex/projects.ts` via `canCreateProject()`.
 

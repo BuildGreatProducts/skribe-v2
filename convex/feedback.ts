@@ -54,13 +54,18 @@ async function verifyProjectOwnership(
 }
 
 /**
- * Generate a random API key
+ * Generate a cryptographically secure random API key
  */
 function createRandomApiKey(): string {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const randomBytes = new Uint8Array(32);
+  crypto.getRandomValues(randomBytes);
+
   let key = "fb_";
   for (let i = 0; i < 32; i++) {
-    key += chars.charAt(Math.floor(Math.random() * chars.length));
+    // Use modulo to map byte value to character index
+    // This has minimal bias since 256 % 62 = 8 (small compared to 256)
+    key += chars.charAt(randomBytes[i] % chars.length);
   }
   return key;
 }
@@ -114,24 +119,32 @@ export const getProjectByApiKey = query({
   },
 });
 
-// Create feedback entry (called by public webhook - no auth required)
+// Create feedback entry (called by public webhook - validates API key)
 export const create = mutation({
   args: {
-    projectId: v.id("projects"),
+    apiKey: v.string(),
     content: v.string(),
     email: v.optional(v.string()),
     metadata: v.optional(v.any()),
     source: v.string(),
   },
   handler: async (ctx, args) => {
-    // Verify project exists (no ownership check for public endpoint)
-    const project = await ctx.db.get(args.projectId);
+    // Validate API key and get project
+    if (!args.apiKey || !args.apiKey.startsWith("fb_")) {
+      throw new Error("Invalid API key format");
+    }
+
+    const project = await ctx.db
+      .query("projects")
+      .withIndex("by_feedback_api_key", (q) => q.eq("feedbackApiKey", args.apiKey))
+      .unique();
+
     if (!project) {
-      throw new Error("Project not found");
+      throw new Error("Invalid API key");
     }
 
     const feedbackId = await ctx.db.insert("feedback", {
-      projectId: args.projectId,
+      projectId: project._id,
       content: args.content,
       email: args.email,
       metadata: args.metadata,

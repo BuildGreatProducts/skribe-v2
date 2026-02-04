@@ -61,38 +61,57 @@ export async function POST(
       );
     }
 
-    // Validate required fields
-    if (!body.content || typeof body.content !== "string") {
+    // Validate and trim content
+    if (typeof body.content !== "string") {
       return NextResponse.json(
         { error: "Missing required field: content" },
         { status: 400, headers: corsHeaders }
       );
     }
 
-    // Validate content length
-    if (body.content.length > 10000) {
+    const trimmedContent = body.content.trim();
+    if (trimmedContent.length === 0) {
+      return NextResponse.json(
+        { error: "Content cannot be empty" },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    if (trimmedContent.length > 10000) {
       return NextResponse.json(
         { error: "Content exceeds maximum length of 10000 characters" },
         { status: 400, headers: corsHeaders }
       );
     }
 
-    // Validate email format if provided
-    if (body.email && typeof body.email === "string") {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(body.email)) {
+    // Validate and trim email if provided
+    let trimmedEmail: string | undefined;
+    if (body.email !== undefined) {
+      if (typeof body.email !== "string") {
         return NextResponse.json(
-          { error: "Invalid email format" },
+          { error: "Email must be a string" },
           { status: 400, headers: corsHeaders }
         );
       }
+      trimmedEmail = body.email.trim();
+      if (trimmedEmail.length > 0) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) {
+          return NextResponse.json(
+            { error: "Invalid email format" },
+            { status: 400, headers: corsHeaders }
+          );
+        }
+      } else {
+        trimmedEmail = undefined;
+      }
     }
 
-    // Create feedback entry
+    // Create feedback entry using API key for validation
     const feedbackId = await convex.mutation(api.feedback.create, {
-      projectId: projectResult.projectId,
-      content: body.content.trim(),
-      email: body.email?.trim(),
+      apiKey,
+      content: trimmedContent,
+      email: trimmedEmail,
       metadata: body.metadata,
       source: body.source || "api",
     });
