@@ -59,6 +59,7 @@ export default defineSchema({
       v.literal("feature"),
       v.literal("tech"),
       v.literal("gtm"),
+      v.literal("landing"),
       v.literal("custom")
     ),
     syncStatus: v.union(
@@ -86,6 +87,7 @@ export default defineSchema({
       v.literal("tech_stack"),
       v.literal("create_prd"),
       v.literal("go_to_market"),
+      v.literal("landing_page"),
       v.literal("custom")
     ),
     title: v.string(),

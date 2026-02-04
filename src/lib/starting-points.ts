@@ -63,6 +63,13 @@ export const STARTING_POINTS = [
     icon: "rocket",
     order: 9,
   },
+  {
+    id: "landing_page",
+    title: "Landing Page",
+    description: "Outline compelling copy for your landing page",
+    icon: "layout",
+    order: 10,
+  },
 ] as const;
 
 export type StartingPointId = (typeof STARTING_POINTS)[number]["id"];
