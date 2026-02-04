@@ -105,6 +105,17 @@ export async function POST(request: NextRequest) {
 
     // Fetch and convert images to base64 for Claude vision
     type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    const VALID_IMAGE_MEDIA_TYPES: ImageMediaType[] = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+    ];
+
+    function isValidImageMediaType(value: string): value is ImageMediaType {
+      return VALID_IMAGE_MEDIA_TYPES.includes(value as ImageMediaType);
+    }
+
     let imageContents: Array<{
       type: "image";
       source: {
@@ -117,6 +128,12 @@ export async function POST(request: NextRequest) {
     if (images && images.length > 0) {
       const imagePromises = images.map(async (img) => {
         try {
+          // Validate contentType before processing
+          if (!isValidImageMediaType(img.contentType)) {
+            console.error(`Invalid content type for image: ${img.contentType}`);
+            return null;
+          }
+
           // Get the image URL from Convex storage
           const imageUrl = await convex.query(api.storage.getImageUrl, {
             storageId: img.storageId as Id<"_storage">,
@@ -138,8 +155,8 @@ export async function POST(request: NextRequest) {
           const arrayBuffer = await imageResponse.arrayBuffer();
           const base64 = Buffer.from(arrayBuffer).toString("base64");
 
-          // Map content type to Claude's expected format
-          const mediaType = img.contentType as ImageMediaType;
+          // contentType is validated, safe to use
+          const mediaType: ImageMediaType = img.contentType;
 
           return {
             type: "image" as const,

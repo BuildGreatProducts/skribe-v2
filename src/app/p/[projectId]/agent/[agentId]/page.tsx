@@ -125,6 +125,7 @@ export default function AgentPage() {
   const createMessage = useMutation(api.messages.create);
   const updateMessage = useMutation(api.messages.update);
   const updateAgent = useMutation(api.agents.update);
+  const deleteImage = useMutation(api.storage.deleteImage);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -182,16 +183,32 @@ export default function AgentPage() {
         uploadedImages = await uploadAllImages();
       }
 
-      // Create user message with images
-      await createMessage({
-        agentId: agentId as Id<"agents">,
-        role: "user",
-        content: userMessage,
-        images: uploadedImages.length > 0 ? uploadedImages : undefined,
-      });
+      // Wrap message creation in try-catch to clean up uploaded images on failure
+      try {
+        // Create user message with images
+        await createMessage({
+          agentId: agentId as Id<"agents">,
+          role: "user",
+          content: userMessage,
+          images: uploadedImages.length > 0 ? uploadedImages : undefined,
+        });
 
-      // Clear images after successful message creation
-      clearImages();
+        // Clear images after successful message creation
+        clearImages();
+      } catch (messageError) {
+        // If message creation fails, delete the uploaded images to avoid orphaned storage
+        if (uploadedImages.length > 0) {
+          console.error("Message creation failed, cleaning up uploaded images...");
+          await Promise.allSettled(
+            uploadedImages.map((img) =>
+              deleteImage({ storageId: img.storageId })
+            )
+          );
+          // Clear the local image state as well
+          clearImages();
+        }
+        throw messageError;
+      }
 
       // Create placeholder for assistant message
       setIsStreaming(true);

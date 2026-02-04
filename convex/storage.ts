@@ -1,5 +1,6 @@
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 
 // Storage limits by subscription tier (in bytes)
 const STORAGE_LIMITS = {
@@ -48,6 +49,37 @@ async function requireAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
     throw new Error("Unauthorized: You must be logged in");
   }
   return user;
+}
+
+/**
+ * Helper to verify storage ownership through the chain: user -> project -> agent -> message.
+ * Returns the owner's user ID if found and owned by the user, throws otherwise.
+ */
+async function verifyStorageOwnership(
+  ctx: QueryCtx | MutationCtx,
+  storageId: Id<"_storage">,
+  userId: Id<"users">
+): Promise<{ ownerId: Id<"users">; messageId: Id<"messages"> } | null> {
+  // Find the message that contains this storageId in its images
+  const allMessages = await ctx.db.query("messages").collect();
+
+  for (const message of allMessages) {
+    if (message.images?.some((img) => img.storageId === storageId)) {
+      // Found the message, now verify ownership chain
+      const agent = await ctx.db.get(message.agentId);
+      if (!agent) continue;
+
+      const project = await ctx.db.get(agent.projectId);
+      if (!project) continue;
+
+      // Check if the project belongs to the authenticated user
+      if (project.userId === userId) {
+        return { ownerId: project.userId, messageId: message._id };
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -121,6 +153,7 @@ export const generateUploadUrl = mutation({
 /**
  * Confirm an upload and update storage quota.
  * Called after successfully uploading to the generated URL.
+ * Re-validates quota to prevent TOCTOU race conditions.
  */
 export const confirmUpload = mutation({
   args: {
@@ -148,10 +181,32 @@ export const confirmUpload = mutation({
       throw new Error("Invalid file type uploaded.");
     }
 
+    // Re-fetch the latest user data to prevent TOCTOU quota breach
+    const latestUser = await ctx.db.get(user._id);
+    if (!latestUser) {
+      await ctx.storage.delete(args.storageId);
+      throw new Error("User not found.");
+    }
+
+    // Use the actual file size from metadata
+    const uploadSize = metadata.size ?? args.size;
+    const currentUsed = latestUser.storageUsed ?? 0;
+    const limit = STORAGE_LIMITS[latestUser.subscriptionTier];
+    const remaining = limit - currentUsed;
+
+    // Re-check quota with latest data
+    if (uploadSize > remaining) {
+      // Delete the uploaded file since it exceeds quota
+      await ctx.storage.delete(args.storageId);
+      throw new Error(
+        `Storage quota exceeded. You have ${Math.round(remaining / 1024 / 1024)}MB remaining. ` +
+          `Upgrade your plan for more storage.`
+      );
+    }
+
     // Update user's storage quota
-    const currentUsed = user.storageUsed ?? 0;
     await ctx.db.patch(user._id, {
-      storageUsed: currentUsed + (metadata.size ?? args.size),
+      storageUsed: currentUsed + uploadSize,
       updatedAt: Date.now(),
     });
 
@@ -159,17 +214,26 @@ export const confirmUpload = mutation({
       storageId: args.storageId,
       filename: args.filename,
       contentType: metadata.contentType ?? args.contentType,
-      size: metadata.size ?? args.size,
+      size: uploadSize,
     };
   },
 });
 
 /**
  * Get a serving URL for a stored image.
+ * Requires authentication and verifies ownership.
  */
 export const getImageUrl = query({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+
+    // Verify ownership before returning URL
+    const ownership = await verifyStorageOwnership(ctx, args.storageId, user._id);
+    if (!ownership) {
+      throw new Error("Unauthorized: You do not have access to this image");
+    }
+
     const url = await ctx.storage.getUrl(args.storageId);
     return url;
   },
@@ -177,14 +241,24 @@ export const getImageUrl = query({
 
 /**
  * Get serving URLs for multiple images.
+ * Requires authentication and verifies ownership for each image.
  */
 export const getImageUrls = query({
   args: { storageIds: v.array(v.id("_storage")) },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+
     const urls: Record<string, string | null> = {};
 
     for (const storageId of args.storageIds) {
-      urls[storageId] = await ctx.storage.getUrl(storageId);
+      // Verify ownership for each image
+      const ownership = await verifyStorageOwnership(ctx, storageId, user._id);
+      if (ownership) {
+        urls[storageId] = await ctx.storage.getUrl(storageId);
+      } else {
+        // Don't include URLs for images the user doesn't own
+        urls[storageId] = null;
+      }
     }
 
     return urls;
@@ -194,25 +268,35 @@ export const getImageUrls = query({
 /**
  * Delete an image and reclaim storage quota.
  * Only allows deleting images that belong to the user's messages.
+ * Verifies ownership through the user -> project -> agent -> message chain.
  */
 export const deleteImage = mutation({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
 
+    // Verify ownership before deleting
+    const ownership = await verifyStorageOwnership(ctx, args.storageId, user._id);
+    if (!ownership) {
+      throw new Error("Unauthorized: You do not have permission to delete this image");
+    }
+
     // Get metadata to know the size for quota adjustment
     const metadata = await ctx.storage.getMetadata(args.storageId);
     const size = metadata?.size ?? 0;
 
-    // Delete the file
+    // Delete the file (only after ownership is confirmed)
     await ctx.storage.delete(args.storageId);
 
-    // Update storage quota
-    const currentUsed = user.storageUsed ?? 0;
-    await ctx.db.patch(user._id, {
-      storageUsed: Math.max(0, currentUsed - size),
-      updatedAt: Date.now(),
-    });
+    // Update storage quota for the actual owner (not the requesting user, though they should be the same)
+    const owner = await ctx.db.get(ownership.ownerId);
+    if (owner) {
+      const currentUsed = owner.storageUsed ?? 0;
+      await ctx.db.patch(ownership.ownerId, {
+        storageUsed: Math.max(0, currentUsed - size),
+        updatedAt: Date.now(),
+      });
+    }
 
     return { success: true };
   },
