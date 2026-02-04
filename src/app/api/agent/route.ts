@@ -11,6 +11,31 @@ import {
 import { SelectionContext } from "@/lib/document-ai-prompts";
 import Anthropic from "@anthropic-ai/sdk";
 
+// Agent types that benefit from web search capability
+const WEB_SEARCH_ENABLED_AGENTS = new Set([
+  "market_validation", // Research competitors, market size, trends
+  "tech_stack", // Latest frameworks, documentation, best practices
+  "go_to_market", // Industry trends, marketing strategies
+  "new_features", // Competitor features, industry standards
+  "custom", // General research capability
+]);
+
+// Web search tool definition (Anthropic native)
+const WEB_SEARCH_TOOL: Anthropic.WebSearchTool20250305 = {
+  type: "web_search_20250305",
+  name: "web_search",
+  max_uses: 5, // Limit searches per request to control costs
+};
+
+// Type for citation in web search results
+interface WebSearchCitation {
+  type: "web_search_result_location";
+  url: string;
+  title: string;
+  cited_text: string;
+  encrypted_index?: string;
+}
+
 // Document type mapping from agent type to document type
 const AGENT_TYPE_TO_DOC_TYPE: Record<string, string> = {
   idea_refinement: "prd",
@@ -196,6 +221,9 @@ export async function POST(request: NextRequest) {
     const baseSystemPrompt =
       agent.systemPrompt || buildSystemPrompt(agent.type, documents);
 
+    // Check if web search is enabled for this agent type (needed for prompt building)
+    const webSearchEnabledForPrompt = WEB_SEARCH_ENABLED_AGENTS.has(agent.type);
+
     // Build tool instructions based on context
     const buildToolInstructions = () => {
       let instructions = `
@@ -207,6 +235,25 @@ You have access to the following tools for document management:
 1. **create_document**: Create a new document when you have enough information from the conversation. Always ask the user for confirmation before creating a document. After gathering sufficient information, say something like "I can create a [Document Type] document based on our discussion. Would you like me to create it now?"
 
 2. **update_document**: Update an existing document when the user wants to make changes. Reference the document by its ID.`;
+
+      // Add web search instructions if enabled
+      if (webSearchEnabledForPrompt) {
+        instructions += `
+
+### Web Search
+
+You have access to **web_search** to find current information from the internet. Use this tool when:
+- The user asks about current market trends, competitors, or industry data
+- You need up-to-date information about technologies, frameworks, or tools
+- Research is needed for market validation, competitive analysis, or go-to-market strategies
+- The user explicitly asks you to search for something online
+
+When using web search:
+- Be specific with your search queries for better results
+- Cite your sources when presenting information from search results
+- Synthesize information from multiple sources when relevant
+- Clearly indicate when information comes from web search vs. your training data`;
+      }
 
       // Add editing tools if a document is actively being edited
       if (activeDocumentId) {
@@ -280,9 +327,18 @@ When creating or updating documents:
     let systemPrompt = buildCurrentSystemPrompt();
 
     // Determine which tools to provide
-    const tools: Anthropic.Tool[] = activeDocumentId
+    const baseTools: Anthropic.Tool[] = activeDocumentId
       ? [...DOCUMENT_TOOLS, ...DOCUMENT_EDIT_TOOLS]
       : DOCUMENT_TOOLS;
+
+    // Check if web search is enabled for this agent type
+    const webSearchEnabled = WEB_SEARCH_ENABLED_AGENTS.has(agent.type);
+
+    // Build tools array with optional web search
+    // Note: web_search uses a different type format than regular tools
+    const tools: Anthropic.Messages.ToolUnion[] = webSearchEnabled
+      ? [...baseTools, WEB_SEARCH_TOOL]
+      : baseTools;
 
     // Format messages for Claude API
     const claudeMessages: Anthropic.MessageParam[] = messages
@@ -339,6 +395,12 @@ When creating or updating documents:
               input: string;
             } | null = null;
             let stopReason: string | null = null;
+            // Track citations from web search for the frontend
+            const collectedCitations: WebSearchCitation[] = [];
+            // Track current text block for citation handling
+            let currentTextBlockIndex: number | null = null;
+            // Store content blocks for continuation (needed for pause_turn)
+            const responseContentBlocks: Anthropic.ContentBlock[] = [];
 
             for await (const event of response) {
               if (event.type === "content_block_start") {
@@ -348,19 +410,75 @@ When creating or updating documents:
                     name: event.content_block.name,
                     input: "",
                   };
+                  responseContentBlocks.push(event.content_block);
+                } else if (event.content_block.type === "server_tool_use") {
+                  // Web search is a server-executed tool - track it for response continuation
+                  responseContentBlocks.push(event.content_block);
+                  // Notify frontend that a web search is happening
+                  const searchMarker = JSON.stringify({
+                    type: "WEB_SEARCH_STARTED",
+                    query: "", // Will be filled in by delta
+                  });
+                  controller.enqueue(encoder.encode(`\n${searchMarker}\n`));
+                } else if (event.content_block.type === "web_search_tool_result") {
+                  // Web search results received
+                  responseContentBlocks.push(event.content_block);
+                } else if (event.content_block.type === "text") {
+                  currentTextBlockIndex = responseContentBlocks.length;
+                  responseContentBlocks.push(event.content_block);
                 }
               } else if (event.type === "content_block_delta") {
                 if (event.delta.type === "text_delta") {
                   controller.enqueue(encoder.encode(event.delta.text));
+                  // Check for citations in the delta (they come with text blocks)
+                  const delta = event.delta as Anthropic.TextDelta & {
+                    citations?: WebSearchCitation[];
+                  };
+                  if (delta.citations && delta.citations.length > 0) {
+                    collectedCitations.push(...delta.citations);
+                  }
                 } else if (
                   event.delta.type === "input_json_delta" &&
                   currentToolUse
                 ) {
                   currentToolUse.input += event.delta.partial_json;
                 }
+              } else if (event.type === "content_block_stop") {
+                // When a text block with citations finishes, send citations to frontend
+                if (
+                  currentTextBlockIndex !== null &&
+                  collectedCitations.length > 0
+                ) {
+                  const citationMarker = JSON.stringify({
+                    type: "WEB_SEARCH_CITATIONS",
+                    citations: collectedCitations.map((c) => ({
+                      url: c.url,
+                      title: c.title,
+                      citedText: c.cited_text,
+                    })),
+                  });
+                  controller.enqueue(encoder.encode(`\n${citationMarker}\n`));
+                  collectedCitations.length = 0; // Clear for next block
+                }
+                currentTextBlockIndex = null;
               } else if (event.type === "message_delta") {
                 stopReason = event.delta.stop_reason;
               }
+            }
+
+            // Handle pause_turn - continue the conversation with accumulated content
+            if (stopReason === "pause_turn") {
+              // The API paused a long-running turn, continue with accumulated content
+              currentMessages = [
+                ...currentMessages,
+                {
+                  role: "assistant" as const,
+                  content: responseContentBlocks,
+                },
+              ];
+              // Continue the loop to let Claude finish its turn
+              currentToolUse = null;
+              continue;
             }
 
             // If the model used a tool, process it and continue
