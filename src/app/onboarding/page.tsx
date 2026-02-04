@@ -6,6 +6,7 @@ import { api } from "../../../convex/_generated/api";
 import { Button, Input, Card, CardHeader, CardTitle, CardContent } from "@/components/ui";
 import { useStoreUser } from "@/hooks/use-store-user";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -68,7 +69,10 @@ export default function OnboardingPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 text-center">
-          <h1 className="logo-text text-3xl text-foreground">Skribe</h1>
+          <div className="flex items-center justify-center gap-2">
+            <Image src="/logo.png" alt="Skribe" width={32} height={32} className="h-8 w-auto" />
+            <h1 className="logo-text text-3xl text-foreground">Skribe</h1>
+          </div>
           <p className="mt-2 text-muted-foreground">Your AI-Powered Strategic Advisor</p>
         </div>
 

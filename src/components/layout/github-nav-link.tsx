@@ -25,8 +25,8 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
   // User still loading
   if (isUserLoading) {
     return (
-      <div className="px-3 py-1">
-        <div className="h-8 animate-pulse rounded-md bg-muted"></div>
+      <div className="px-3 py-2">
+        <div className="h-10 animate-pulse rounded-lg bg-muted"></div>
       </div>
     );
   }
@@ -34,8 +34,8 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
   // Project query still loading
   if (currentProject === undefined) {
     return (
-      <div className="px-3 py-1">
-        <div className="h-8 animate-pulse rounded-md bg-muted"></div>
+      <div className="px-3 py-2">
+        <div className="h-10 animate-pulse rounded-lg bg-muted"></div>
       </div>
     );
   }
@@ -66,12 +66,12 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
   // State 1: GitHub not connected - show connect link
   if (!isGitHubConnected) {
     return (
-      <div className="px-3 py-1">
+      <div className="px-3 py-2">
         <Link
           href="/api/github/auth"
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
-          <GitHubIcon className="h-4 w-4" />
+          <GitHubIcon className="h-5 w-5" />
           <span>Connect GitHub</span>
         </Link>
       </div>
@@ -81,16 +81,16 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
   // State 2: GitHub connected + repo linked - show repo link
   if (hasLinkedRepo && validatedRepoUrl) {
     return (
-      <div className="px-3 py-1">
+      <div className="px-3 py-2">
         <a
           href={validatedRepoUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
-          <GitHubIcon className="h-4 w-4" />
+          <GitHubIcon className="h-5 w-5" />
           <span className="flex-1 truncate">{currentProject.githubRepoName}</span>
-          <ExternalLinkIcon className="h-3 w-3 flex-shrink-0" />
+          <ExternalLinkIcon className="h-3.5 w-3.5 flex-shrink-0" />
         </a>
       </div>
     );
@@ -98,12 +98,12 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
 
   // State 3: GitHub connected but no repo linked - show link repo option
   return (
-    <div className="px-3 py-1">
+    <div className="px-3 py-2">
       <Link
         href={`/p/${currentProjectId}/settings`}
-        className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
-        <GitHubIcon className="h-4 w-4" />
+        <GitHubIcon className="h-5 w-5" />
         <span>Link Repository</span>
       </Link>
     </div>
