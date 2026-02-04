@@ -176,10 +176,53 @@ Your capabilities include:
 Be helpful, specific, and actionable in your responses.
 Draw on the project context to provide relevant, personalized advice.
 Offer to create or update documents when appropriate.`,
+
+  feedback_analysis: `You are Skribe, an AI strategic advisor helping users analyze user feedback to identify features, bugs, and improvements.
+
+Your role is to guide feedback analysis by:
+1. Reviewing and categorizing user feedback submissions
+2. Identifying common themes, patterns, and pain points
+3. Distinguishing between bugs, feature requests, and general feedback
+4. Prioritizing improvements based on frequency and impact
+5. Translating feedback into actionable feature specifications
+
+You have access to the user feedback collected for this project. When analyzing feedback:
+- Look for patterns across multiple submissions
+- Identify the underlying user needs behind requests
+- Distinguish between what users say vs. what they actually need
+- Consider the effort vs. impact of potential solutions
+- Group related feedback items together
+
+Help the user:
+- Understand what their users are asking for most
+- Identify quick wins and high-impact improvements
+- Create feature specification documents for top requests
+- Prioritize their product roadmap based on real user data
+
+When you've identified a clear feature or improvement from the feedback, offer to create a Feature Specification document that includes:
+- Problem statement (from user feedback)
+- Proposed solution
+- User stories
+- Acceptance criteria
+- Priority recommendation
+
+Be data-driven in your analysis and ground recommendations in the actual feedback provided.`,
 };
 
 /**
- * Get the system prompt for a given chat type, with document context injected.
+ * Feedback item for context injection
+ */
+export interface FeedbackItem {
+  content: string;
+  email?: string;
+  source: string;
+  category?: string;
+  sentiment?: string;
+  createdAt: number;
+}
+
+/**
+ * Get the system prompt for a given chat type, with document and feedback context injected.
  */
 export function buildSystemPrompt(
   chatType: string,
@@ -188,23 +231,54 @@ export function buildSystemPrompt(
     type: string;
     content: string;
     updatedAt: number;
-  }>
+  }>,
+  feedbackContext?: FeedbackItem[]
 ): string {
   const basePrompt = SYSTEM_PROMPTS[chatType] || SYSTEM_PROMPTS.custom;
 
-  if (documentContext.length === 0) {
-    return basePrompt;
+  let fullPrompt = basePrompt;
+
+  // Add feedback context for feedback_analysis agent
+  if (feedbackContext && feedbackContext.length > 0) {
+    const feedbackSection = feedbackContext
+      .map((fb, index) => {
+        const date = new Date(fb.createdAt).toLocaleDateString();
+        const meta = [
+          fb.source && `Source: ${fb.source}`,
+          fb.email && `From: ${fb.email}`,
+          fb.category && `Category: ${fb.category}`,
+          fb.sentiment && `Sentiment: ${fb.sentiment}`,
+        ]
+          .filter(Boolean)
+          .join(" | ");
+
+        return `### Feedback #${index + 1} (${date})
+${meta ? `*${meta}*\n` : ""}
+${fb.content}`;
+      })
+      .join("\n\n---\n\n");
+
+    fullPrompt += `
+
+---
+
+## User Feedback (${feedbackContext.length} submissions)
+
+The following feedback has been collected from users. Analyze these submissions to identify patterns, feature requests, bugs, and improvement opportunities.
+
+${feedbackSection}`;
   }
 
-  // Format documents for context
-  const documentsSection = documentContext
-    .map(
-      (doc) =>
-        `### ${doc.title} (${doc.type})\nLast updated: ${new Date(doc.updatedAt).toLocaleDateString()}\n\n${doc.content}`
-    )
-    .join("\n\n---\n\n");
+  // Add document context if available
+  if (documentContext.length > 0) {
+    const documentsSection = documentContext
+      .map(
+        (doc) =>
+          `### ${doc.title} (${doc.type})\nLast updated: ${new Date(doc.updatedAt).toLocaleDateString()}\n\n${doc.content}`
+      )
+      .join("\n\n---\n\n");
 
-  return `${basePrompt}
+    fullPrompt += `
 
 ---
 
@@ -213,4 +287,7 @@ export function buildSystemPrompt(
 The following documents have been created for this project. Reference them as needed to provide context-aware advice.
 
 ${documentsSection}`;
+  }
+
+  return fullPrompt;
 }

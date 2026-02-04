@@ -233,8 +233,8 @@ export const update = mutation({
 
 // Helper to batch delete items
 async function batchDelete(
-  ctx: { db: { delete: (id: Id<"documents"> | Id<"agents"> | Id<"messages">) => Promise<void> } },
-  items: Array<{ _id: Id<"documents"> | Id<"agents"> | Id<"messages"> }>,
+  ctx: { db: { delete: (id: Id<"documents"> | Id<"agents"> | Id<"messages"> | Id<"feedback">) => Promise<void> } },
+  items: Array<{ _id: Id<"documents"> | Id<"agents"> | Id<"messages"> | Id<"feedback"> }>,
   batchSize: number = 50
 ) {
   for (let i = 0; i < items.length; i += batchSize) {
@@ -287,6 +287,12 @@ export const deleteForDowngrade = mutation({
       );
       const messages = allMessages.flat();
 
+      // Collect all feedback for this project
+      const feedback = await ctx.db
+        .query("feedback")
+        .withIndex("by_project", (q) => q.eq("projectId", projectId))
+        .collect();
+
       // Batch delete messages first
       await batchDelete(ctx, messages);
 
@@ -295,6 +301,9 @@ export const deleteForDowngrade = mutation({
 
       // Batch delete documents
       await batchDelete(ctx, documents);
+
+      // Batch delete feedback
+      await batchDelete(ctx, feedback);
 
       // Delete the project itself
       await ctx.db.delete(projectId);
@@ -363,6 +372,12 @@ export const remove = mutation({
     );
     const messages = allMessages.flat();
 
+    // Collect all feedback for this project
+    const feedback = await ctx.db
+      .query("feedback")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .collect();
+
     // Batch delete messages first (most numerous)
     await batchDelete(ctx, messages);
 
@@ -371,6 +386,9 @@ export const remove = mutation({
 
     // Batch delete documents
     await batchDelete(ctx, documents);
+
+    // Batch delete feedback
+    await batchDelete(ctx, feedback);
 
     // Delete the project itself
     await ctx.db.delete(args.projectId);

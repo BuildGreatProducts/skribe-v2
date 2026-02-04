@@ -11,6 +11,7 @@
 import type * as agentTemplates from "../agentTemplates.js";
 import type * as agents from "../agents.js";
 import type * as documents from "../documents.js";
+import type * as feedback from "../feedback.js";
 import type * as messages from "../messages.js";
 import type * as projects from "../projects.js";
 import type * as users from "../users.js";
@@ -25,6 +26,7 @@ declare const fullApi: ApiFromModules<{
   agentTemplates: typeof agentTemplates;
   agents: typeof agents;
   documents: typeof documents;
+  feedback: typeof feedback;
   messages: typeof messages;
   projects: typeof projects;
   users: typeof users;

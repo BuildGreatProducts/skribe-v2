@@ -70,6 +70,13 @@ export const STARTING_POINTS = [
     icon: "layout",
     order: 10,
   },
+  {
+    id: "feedback_analysis",
+    title: "Feedback Analysis",
+    description: "Analyze user feedback to identify features and fixes",
+    icon: "inbox",
+    order: 11,
+  },
 ] as const;
 
 export type StartingPointId = (typeof STARTING_POINTS)[number]["id"];

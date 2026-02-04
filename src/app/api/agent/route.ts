@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
-import { buildSystemPrompt } from "@/lib/system-prompts";
+import { buildSystemPrompt, FeedbackItem } from "@/lib/system-prompts";
 import {
   DOCUMENT_EDIT_TOOLS,
   executeDocumentTool,
@@ -17,6 +17,7 @@ const WEB_SEARCH_ENABLED_AGENTS = new Set([
   "tech_stack", // Latest frameworks, documentation, best practices
   "go_to_market", // Industry trends, marketing strategies
   "new_features", // Competitor features, industry standards
+  "feedback_analysis", // Research competitor features, best practices
   "custom", // General research capability
 ]);
 
@@ -48,6 +49,7 @@ const AGENT_TYPE_TO_DOC_TYPE: Record<string, string> = {
   create_prd: "prd",
   go_to_market: "gtm",
   landing_page: "landing",
+  feedback_analysis: "feature",
   custom: "custom",
 };
 
@@ -216,12 +218,68 @@ export async function POST(request: NextRequest) {
       agentId: agentId as Id<"agents">,
     });
 
+    // Get feedback for feedback_analysis agent (with 20k character cap)
+    let feedbackContext: FeedbackItem[] | undefined;
+    if (agent.type === "feedback_analysis") {
+      const feedbackList = await convex.query(api.feedback.listByProject, {
+        projectId: projectId as Id<"projects">,
+        limit: 100,
+      });
+      if (feedbackList && feedbackList.length > 0) {
+        const MAX_FEEDBACK_CHARS = 20000;
+        let totalChars = 0;
+        const truncatedFeedback: FeedbackItem[] = [];
+
+        for (const fb of feedbackList) {
+          // Estimate serialized length (content + metadata)
+          const itemLength =
+            fb.content.length +
+            (fb.email?.length || 0) +
+            (fb.source?.length || 0) +
+            (fb.category?.length || 0) +
+            (fb.sentiment?.length || 0) +
+            50; // overhead for formatting
+
+          if (totalChars + itemLength > MAX_FEEDBACK_CHARS) {
+            // Check if we can fit a truncated version
+            const remainingBudget = MAX_FEEDBACK_CHARS - totalChars - 50;
+            if (remainingBudget > 100 && truncatedFeedback.length === 0) {
+              // Truncate content to fit remaining budget if this is the first item
+              truncatedFeedback.push({
+                content: fb.content.slice(0, remainingBudget) + "...",
+                email: fb.email,
+                source: fb.source,
+                category: fb.category,
+                sentiment: fb.sentiment,
+                createdAt: fb.createdAt,
+              });
+            }
+            break;
+          }
+
+          truncatedFeedback.push({
+            content: fb.content,
+            email: fb.email,
+            source: fb.source,
+            category: fb.category,
+            sentiment: fb.sentiment,
+            createdAt: fb.createdAt,
+          });
+          totalChars += itemLength;
+        }
+
+        if (truncatedFeedback.length > 0) {
+          feedbackContext = truncatedFeedback;
+        }
+      }
+    }
+
     // Track the active document content for editing (mutable for tool loop)
     let currentDocumentContent = activeDocumentContent || "";
 
     // Build system prompt with document context and tool instructions
     const baseSystemPrompt =
-      agent.systemPrompt || buildSystemPrompt(agent.type, documents);
+      agent.systemPrompt || buildSystemPrompt(agent.type, documents, feedbackContext);
 
     // Check if web search is enabled for this agent type (needed for prompt building)
     const webSearchEnabledForPrompt = WEB_SEARCH_ENABLED_AGENTS.has(agent.type);
