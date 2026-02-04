@@ -139,12 +139,21 @@ export const getById = query({
   },
 });
 
+// Image attachment type for messages
+const imageAttachment = v.object({
+  storageId: v.id("_storage"),
+  filename: v.string(),
+  contentType: v.string(),
+  size: v.number(),
+});
+
 // Create a new message
 export const create = mutation({
   args: {
     agentId: v.id("agents"),
     role: messageRoles,
     content: v.string(),
+    images: v.optional(v.array(imageAttachment)),
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
@@ -154,11 +163,12 @@ export const create = mutation({
 
     const now = Date.now();
 
-    // Create the message
+    // Create the message with optional images
     const messageId = await ctx.db.insert("messages", {
       agentId: args.agentId,
       role: args.role,
       content: args.content,
+      images: args.images,
       createdAt: now,
     });
 

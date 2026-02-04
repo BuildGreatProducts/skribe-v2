@@ -6,9 +6,17 @@ import { api } from "../../../../../../convex/_generated/api";
 import { Id } from "../../../../../../convex/_generated/dataModel";
 import { Button, Textarea } from "@/components/ui";
 import { EditAgentModal } from "@/components/chat/agent";
-import { DocumentCard, AgentDocumentPanel } from "@/components/chat";
+import {
+  DocumentCard,
+  AgentDocumentPanel,
+  ImageUploadButton,
+  ImagePreviewList,
+  ChatImageDisplay,
+  DropZone,
+} from "@/components/chat";
 import { SelectionContextChip } from "@/components/document/SelectionContextChip";
 import { useStoreUser } from "@/hooks/use-store-user";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { useState, useRef, useEffect, useCallback } from "react";
 import DOMPurify from "dompurify";
 import { SelectionContext } from "@/hooks/use-text-selection";
@@ -81,6 +89,20 @@ export default function AgentPage() {
   const [activeDocumentContent, setActiveDocumentContent] = useState("");
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
 
+  // Image upload state
+  const [imageError, setImageError] = useState<string | null>(null);
+  const {
+    pendingImages,
+    isUploading,
+    addImages,
+    removeImage,
+    clearImages,
+    uploadAllImages,
+    maxImages,
+  } = useImageUpload({
+    onError: (error) => setImageError(error),
+  });
+
   // Fetch documents for the project
   const projectDocuments = useQuery(
     api.documents.getByProject,
@@ -143,16 +165,33 @@ export default function AgentPage() {
     const userMessage = inputValue.trim();
     setInputValue("");
     setIsSubmitting(true);
+    setImageError(null);
 
     let assistantMessageId: Id<"messages"> | null = null;
 
     try {
-      // Create user message
+      // Upload any pending images first
+      let uploadedImages: Array<{
+        storageId: Id<"_storage">;
+        filename: string;
+        contentType: string;
+        size: number;
+      }> = [];
+
+      if (pendingImages.length > 0) {
+        uploadedImages = await uploadAllImages();
+      }
+
+      // Create user message with images
       await createMessage({
         agentId: agentId as Id<"agents">,
         role: "user",
         content: userMessage,
+        images: uploadedImages.length > 0 ? uploadedImages : undefined,
       });
+
+      // Clear images after successful message creation
+      clearImages();
 
       // Create placeholder for assistant message
       setIsStreaming(true);
@@ -169,6 +208,14 @@ export default function AgentPage() {
         projectId,
         message: userMessage,
       };
+
+      // Include uploaded images for Claude vision
+      if (uploadedImages.length > 0) {
+        requestBody.images = uploadedImages.map((img) => ({
+          storageId: img.storageId,
+          contentType: img.contentType,
+        }));
+      }
 
       // Include document context if panel is open
       if (isPanelOpen && activeDocumentId) {
@@ -405,36 +452,73 @@ export default function AgentPage() {
           </div>
         )}
 
-        <form
-          onSubmit={handleSubmit}
-          className="mx-auto flex max-w-3xl items-end gap-3"
-        >
-          <div className="flex-1">
-            <Textarea
-              ref={textareaRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                selectionContext
-                  ? "Ask about or edit the selected text..."
-                  : "Type your message..."
-              }
-              rows={1}
-              className="min-h-[44px] max-h-32 resize-none"
-              disabled={isSubmitting}
-            />
+        {/* Image error message */}
+        {imageError && (
+          <div className="mx-auto max-w-3xl mb-3">
+            <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {imageError}
+              <button
+                type="button"
+                onClick={() => setImageError(null)}
+                className="ml-2 underline hover:no-underline"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
-          <Button
-            type="submit"
-            disabled={!inputValue.trim() || isSubmitting}
-            isLoading={isSubmitting}
+        )}
+
+        {/* Image previews */}
+        {pendingImages.length > 0 && (
+          <div className="mx-auto max-w-3xl mb-3">
+            <ImagePreviewList images={pendingImages} onRemove={removeImage} />
+          </div>
+        )}
+
+        <DropZone
+          onFilesDropped={addImages}
+          disabled={isSubmitting}
+          className="mx-auto max-w-3xl"
+        >
+          <form
+            onSubmit={handleSubmit}
+            className="flex items-end gap-3"
           >
-            <SendIcon className="h-5 w-5" />
-          </Button>
-        </form>
+            <div className="flex-1">
+              <Textarea
+                ref={textareaRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  selectionContext
+                    ? "Ask about or edit the selected text..."
+                    : pendingImages.length > 0
+                      ? "Add a message about your image..."
+                      : "Type your message..."
+                }
+                rows={1}
+                className="min-h-[44px] max-h-32 resize-none"
+                disabled={isSubmitting}
+              />
+            </div>
+            <ImageUploadButton
+              onFilesSelected={addImages}
+              disabled={isSubmitting}
+              maxImages={maxImages}
+              currentCount={pendingImages.length}
+            />
+            <Button
+              type="submit"
+              disabled={!inputValue.trim() || isSubmitting || isUploading}
+              isLoading={isSubmitting || isUploading}
+            >
+              <SendIcon className="h-5 w-5" />
+            </Button>
+          </form>
+        </DropZone>
         <p className="mx-auto max-w-3xl mt-2 text-xs text-muted-foreground text-center">
-          Press Enter to send, Shift+Enter for new line
+          Press Enter to send, Shift+Enter for new line. Drag & drop or click to attach images.
         </p>
       </div>
 
@@ -482,10 +566,23 @@ function MessageBubble({
     role: "user" | "assistant" | "system";
     content: string;
     createdAt: number;
+    images?: Array<{
+      storageId: Id<"_storage">;
+      filename: string;
+      contentType: string;
+      size: number;
+    }>;
   };
   onOpenDocument?: (documentId: Id<"documents">) => void;
 }) {
   const isUser = message.role === "user";
+
+  // Get URLs for any images in the message
+  const storageIds = message.images?.map((img) => img.storageId) ?? [];
+  const imageUrls = useQuery(
+    api.storage.getImageUrls,
+    storageIds.length > 0 ? { storageIds } : "skip"
+  );
 
   if (message.role === "system") {
     return null;
@@ -501,6 +598,8 @@ function MessageBubble({
     (e) => e.type === "DOCUMENT_CREATED" || e.type === "DOCUMENT_UPDATED"
   );
 
+  const hasImages = message.images && message.images.length > 0;
+
   return (
     <div className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
       <div
@@ -513,6 +612,20 @@ function MessageBubble({
         </span>
       </div>
       <div className="max-w-[80%] space-y-2">
+        {/* Images attached to message */}
+        {hasImages && (
+          <ChatImageDisplay
+            images={message.images!.map((img) => ({
+              storageId: img.storageId as string,
+              filename: img.filename,
+              contentType: img.contentType,
+              size: img.size,
+            }))}
+            imageUrls={imageUrls ?? {}}
+            isUser={isUser}
+          />
+        )}
+
         {/* Main message content */}
         {cleanContent && (
           <div
@@ -541,7 +654,7 @@ function MessageBubble({
         ))}
 
         {/* Show placeholder if no content yet */}
-        {!cleanContent && documentCards.length === 0 && (
+        {!cleanContent && documentCards.length === 0 && !hasImages && (
           <div className="rounded-2xl rounded-tl-none bg-white p-4 shadow-sm">
             <span className="text-muted-foreground italic">...</span>
           </div>

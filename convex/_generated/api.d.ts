@@ -13,6 +13,7 @@ import type * as agents from "../agents.js";
 import type * as documents from "../documents.js";
 import type * as messages from "../messages.js";
 import type * as projects from "../projects.js";
+import type * as storage from "../storage.js";
 import type * as users from "../users.js";
 
 import type {
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   documents: typeof documents;
   messages: typeof messages;
   projects: typeof projects;
+  storage: typeof storage;
   users: typeof users;
 }>;
 

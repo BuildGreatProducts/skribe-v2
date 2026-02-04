@@ -13,8 +13,6 @@ import {
 } from "@/lib/document-edit-tools";
 import Anthropic from "@anthropic-ai/sdk";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -36,7 +34,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Set the auth token on the Convex client
+    // Create a per-request Convex client to avoid auth leaking between requests
+    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
     convex.setAuth(token);
 
     const body = await request.json();
@@ -47,6 +46,7 @@ export async function POST(request: NextRequest) {
       documentContent,
       selectionContext,
       messageHistory,
+      images,
     } = body as {
       documentId: string;
       projectId: string;
@@ -54,6 +54,10 @@ export async function POST(request: NextRequest) {
       documentContent: string;
       selectionContext?: SelectionContext;
       messageHistory: ChatMessage[];
+      images?: Array<{
+        storageId: string;
+        contentType: string;
+      }>;
     };
 
     if (!documentId || !projectId || !message || documentContent === undefined) {
@@ -99,6 +103,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch and convert images to base64 for Claude vision
+    type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    let imageContents: Array<{
+      type: "image";
+      source: {
+        type: "base64";
+        media_type: ImageMediaType;
+        data: string;
+      };
+    }> = [];
+
+    if (images && images.length > 0) {
+      const imagePromises = images.map(async (img) => {
+        try {
+          // Get the image URL from Convex storage
+          const imageUrl = await convex.query(api.storage.getImageUrl, {
+            storageId: img.storageId as Id<"_storage">,
+          });
+
+          if (!imageUrl) {
+            console.error(`Failed to get URL for image: ${img.storageId}`);
+            return null;
+          }
+
+          // Fetch the image data
+          const imageResponse = await fetch(imageUrl);
+          if (!imageResponse.ok) {
+            console.error(`Failed to fetch image: ${imageUrl}`);
+            return null;
+          }
+
+          // Convert to base64
+          const arrayBuffer = await imageResponse.arrayBuffer();
+          const base64 = Buffer.from(arrayBuffer).toString("base64");
+
+          // Map content type to Claude's expected format
+          const mediaType = img.contentType as ImageMediaType;
+
+          return {
+            type: "image" as const,
+            source: {
+              type: "base64" as const,
+              media_type: mediaType,
+              data: base64,
+            },
+          };
+        } catch (error) {
+          console.error(`Error processing image ${img.storageId}:`, error);
+          return null;
+        }
+      });
+
+      const results = await Promise.all(imagePromises);
+      imageContents = results.filter(
+        (r): r is NonNullable<typeof r> => r !== null
+      );
+    }
+
     // Format messages for Claude API
     const claudeMessages: Anthropic.MessageParam[] = (messageHistory || [])
       .filter((m) => m.content.trim() !== "")
@@ -107,11 +169,23 @@ export async function POST(request: NextRequest) {
         content: m.content,
       }));
 
-    // Add the new user message
-    claudeMessages.push({
-      role: "user" as const,
-      content: message,
-    });
+    // Add the new user message with optional images
+    if (imageContents.length > 0) {
+      // Multimodal message with images and text
+      claudeMessages.push({
+        role: "user" as const,
+        content: [
+          ...imageContents,
+          { type: "text" as const, text: message },
+        ],
+      });
+    } else {
+      // Text-only message
+      claudeMessages.push({
+        role: "user" as const,
+        content: message,
+      });
+    }
 
     // Initialize Anthropic client
     const anthropic = new Anthropic({
