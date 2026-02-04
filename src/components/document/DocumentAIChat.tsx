@@ -4,6 +4,12 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Button, Textarea } from "@/components/ui";
 import { SelectionContextChip, SelectionContext } from "./SelectionContextChip";
 import { PendingUpdatePreview } from "./PendingUpdatePreview";
+import {
+  ImageUploadButton,
+  ImagePreviewList,
+  DropZone,
+} from "@/components/chat";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { cn } from "@/lib/utils";
 import DOMPurify from "dompurify";
 
@@ -34,11 +40,25 @@ export function DocumentAIChat({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // AbortController ref for cleanup
   const abortControllerRef = useRef<AbortController | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+
+  // Image upload hook
+  const {
+    pendingImages,
+    isUploading,
+    addImages,
+    removeImage,
+    clearImages,
+    uploadAllImages,
+    maxImages,
+  } = useImageUpload({
+    onError: (err) => setImageError(err),
+  });
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -66,6 +86,28 @@ export function DocumentAIChat({
     setInputValue("");
     setIsSubmitting(true);
     setError(null);
+    setImageError(null);
+
+    // Upload any pending images first
+    let uploadedImages: Array<{
+      storageId: string;
+      contentType: string;
+    }> = [];
+
+    if (pendingImages.length > 0) {
+      try {
+        const uploaded = await uploadAllImages();
+        uploadedImages = uploaded.map((img) => ({
+          storageId: img.storageId,
+          contentType: img.contentType,
+        }));
+        clearImages();
+      } catch {
+        setError("Failed to upload images");
+        setIsSubmitting(false);
+        return;
+      }
+    }
 
     // Add user message to local state
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
@@ -84,6 +126,7 @@ export function DocumentAIChat({
           documentContent,
           selectionContext: selectedText,
           messageHistory: messages,
+          images: uploadedImages.length > 0 ? uploadedImages : undefined,
         }),
         signal: controller.signal,
       });
@@ -173,7 +216,7 @@ export function DocumentAIChat({
       }
       readerRef.current = null;
     }
-  }, [inputValue, isSubmitting, documentId, projectId, documentContent, selectedText, messages]);
+  }, [inputValue, isSubmitting, documentId, projectId, documentContent, selectedText, messages, pendingImages, uploadAllImages, clearImages]);
 
   const handleApplyUpdate = () => {
     if (pendingUpdate) {
@@ -284,38 +327,67 @@ export function DocumentAIChat({
       </div>
 
       {/* Error display */}
-      {error && (
+      {(error || imageError) && (
         <div className="px-4 py-2 bg-destructive/10 border-t border-destructive/20">
-          <p className="text-xs text-destructive">{error}</p>
+          <p className="text-xs text-destructive">
+            {error || imageError}
+            {imageError && (
+              <button
+                type="button"
+                onClick={() => setImageError(null)}
+                className="ml-2 underline hover:no-underline"
+              >
+                Dismiss
+              </button>
+            )}
+          </p>
         </div>
       )}
 
       {/* Input */}
       <div className="px-4 py-3 border-t border-border">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-          <Textarea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              selectedText
-                ? "How should I change the selected text?"
-                : "How can I help edit this document?"
-            }
-            className="min-h-[80px] text-sm resize-none"
-            disabled={isSubmitting}
-          />
-          <Button
-            type="submit"
-            size="sm"
-            isLoading={isSubmitting}
-            disabled={!inputValue.trim() || isSubmitting}
-            className="self-end"
-          >
-            <SendIcon className="h-4 w-4 mr-2" />
-            Send
-          </Button>
-        </form>
+        {/* Image previews */}
+        {pendingImages.length > 0 && (
+          <div className="mb-2">
+            <ImagePreviewList images={pendingImages} onRemove={removeImage} />
+          </div>
+        )}
+
+        <DropZone onFilesDropped={addImages} disabled={isSubmitting}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+            <Textarea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                selectedText
+                  ? "How should I change the selected text?"
+                  : pendingImages.length > 0
+                    ? "Describe what you'd like to do with this image..."
+                    : "How can I help edit this document?"
+              }
+              className="min-h-[80px] text-sm resize-none"
+              disabled={isSubmitting}
+            />
+            <div className="flex items-center justify-between">
+              <ImageUploadButton
+                onFilesSelected={addImages}
+                disabled={isSubmitting}
+                maxImages={maxImages}
+                currentCount={pendingImages.length}
+              />
+              <Button
+                type="submit"
+                size="sm"
+                isLoading={isSubmitting || isUploading}
+                disabled={!inputValue.trim() || isSubmitting || isUploading}
+              >
+                <SendIcon className="h-4 w-4 mr-2" />
+                Send
+              </Button>
+            </div>
+          </form>
+        </DropZone>
       </div>
     </div>
   );

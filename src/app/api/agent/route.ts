@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
       activeDocumentId,
       activeDocumentContent,
       selectionContext,
+      images,
     } = body as {
       agentId: string;
       projectId: string;
@@ -126,6 +127,10 @@ export async function POST(request: NextRequest) {
       activeDocumentId?: string;
       activeDocumentContent?: string;
       selectionContext?: SelectionContext;
+      images?: Array<{
+        storageId: string;
+        contentType: string;
+      }>;
     };
 
     if (!agentId || !projectId || !message) {
@@ -190,6 +195,64 @@ export async function POST(request: NextRequest) {
     const messages = await convex.query(api.messages.getByAgent, {
       agentId: agentId as Id<"agents">,
     });
+
+    // Fetch and convert images to base64 for Claude vision
+    type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    let imageContents: Array<{
+      type: "image";
+      source: {
+        type: "base64";
+        media_type: ImageMediaType;
+        data: string;
+      };
+    }> = [];
+
+    if (images && images.length > 0) {
+      const imagePromises = images.map(async (img) => {
+        try {
+          // Get the image URL from Convex storage
+          const imageUrl = await convex.query(api.storage.getImageUrl, {
+            storageId: img.storageId as Id<"_storage">,
+          });
+
+          if (!imageUrl) {
+            console.error(`Failed to get URL for image: ${img.storageId}`);
+            return null;
+          }
+
+          // Fetch the image data
+          const imageResponse = await fetch(imageUrl);
+          if (!imageResponse.ok) {
+            console.error(`Failed to fetch image: ${imageUrl}`);
+            return null;
+          }
+
+          // Convert to base64
+          const arrayBuffer = await imageResponse.arrayBuffer();
+          const base64 = Buffer.from(arrayBuffer).toString("base64");
+
+          // Map content type to Claude's expected format
+          const mediaType = img.contentType as ImageMediaType;
+
+          return {
+            type: "image" as const,
+            source: {
+              type: "base64" as const,
+              media_type: mediaType,
+              data: base64,
+            },
+          };
+        } catch (error) {
+          console.error(`Error processing image ${img.storageId}:`, error);
+          return null;
+        }
+      });
+
+      const results = await Promise.all(imagePromises);
+      imageContents = results.filter(
+        (r): r is NonNullable<typeof r> => r !== null
+      );
+    }
 
     // Track the active document content for editing (mutable for tool loop)
     let currentDocumentContent = activeDocumentContent || "";
@@ -294,11 +357,23 @@ When creating or updating documents:
         content: m.content,
       }));
 
-    // Add the new user message
-    claudeMessages.push({
-      role: "user" as const,
-      content: message,
-    });
+    // Add the new user message with optional images
+    if (imageContents.length > 0) {
+      // Multimodal message with images and text
+      claudeMessages.push({
+        role: "user" as const,
+        content: [
+          ...imageContents,
+          { type: "text" as const, text: message },
+        ],
+      });
+    } else {
+      // Text-only message
+      claudeMessages.push({
+        role: "user" as const,
+        content: message,
+      });
+    }
 
     // Check for API key
     const apiKey = process.env.ANTHROPIC_API_KEY;
