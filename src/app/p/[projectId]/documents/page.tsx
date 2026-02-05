@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { Card, CardContent, Button, Input, Modal } from "@/components/ui";
+import { CreateDocumentModal, type DocumentType } from "@/components/document";
 import Link from "next/link";
 import { useState, useMemo, useRef, useEffect } from "react";
 
@@ -24,9 +25,14 @@ export default function DocumentsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPushingSingle, setIsPushingSingle] = useState<string | null>(null);
 
+  // Create document modal state
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
   // Mutations
   const updateDocument = useMutation(api.documents.update);
   const deleteDocument = useMutation(api.documents.remove);
+  const createDocument = useMutation(api.documents.create);
 
   // Fetch project data
   const project = useQuery(
@@ -175,6 +181,23 @@ export default function DocumentsPage() {
     setDeleteModalDocId(docId);
   };
 
+  const handleCreateDocument = async (title: string, type: DocumentType, content: string) => {
+    setIsCreating(true);
+    try {
+      const defaultContent = content || `# ${title}\n\nStart writing your document here...`;
+      const newDocId = await createDocument({
+        projectId: projectId as Id<"projects">,
+        title,
+        content: defaultContent,
+        type,
+      });
+      setIsCreateModalOpen(false);
+      router.push(`/p/${projectId}/documents/${newDocId}`);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   if (project === undefined || documents === undefined) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -191,17 +214,17 @@ export default function DocumentsPage() {
           <h1 className="font-serif text-2xl font-bold text-foreground">Documents</h1>
           <p className="mt-1 text-muted-foreground">
             {documents.length === 0
-              ? "Documents created during conversations will appear here"
+              ? "Create documents or generate them during conversations"
               : `${documents.length} document${documents.length !== 1 ? "s" : ""} in this project`}
           </p>
         </div>
-        {project?.githubRepoName && documents.length > 0 && (
-          <div className="flex items-center gap-3">
-            {pendingDocumentsCount > 0 && (
-              <span className="text-sm text-warning">
-                {pendingDocumentsCount} pending
-              </span>
-            )}
+        <div className="flex items-center gap-3">
+          {pendingDocumentsCount > 0 && (
+            <span className="text-sm text-warning">
+              {pendingDocumentsCount} pending
+            </span>
+          )}
+          {project?.githubRepoName && documents.length > 0 && (
             <Button
               variant="outline"
               onClick={handlePushAllToGitHub}
@@ -211,8 +234,12 @@ export default function DocumentsPage() {
               <GitHubIcon className="h-4 w-4 mr-2" />
               Push All to GitHub
             </Button>
-          </div>
-        )}
+          )}
+          <Button onClick={() => setIsCreateModalOpen(true)}>
+            <PlusIcon className="h-4 w-4 mr-2" />
+            New Document
+          </Button>
+        </div>
       </div>
 
       {/* Push Result Feedback */}
@@ -249,12 +276,18 @@ export default function DocumentsPage() {
           </div>
           <h2 className="font-serif text-xl font-semibold mb-2">No documents yet</h2>
           <p className="text-muted-foreground text-center max-w-md mb-6">
-            Documents are created during your conversations with the AI advisor.
-            Start a conversation to generate your first document.
+            Create a blank document to start writing, or generate documents
+            during your conversations with the AI advisor.
           </p>
-          <Button onClick={() => router.push(`/p/${projectId}`)}>
-            Start a Conversation
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button onClick={() => setIsCreateModalOpen(true)}>
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Create Blank Document
+            </Button>
+            <Button variant="outline" onClick={() => router.push(`/p/${projectId}`)}>
+              Start a Conversation
+            </Button>
+          </div>
         </div>
       ) : (
         /* Documents Grid */
@@ -343,6 +376,14 @@ export default function DocumentsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Create Document Modal */}
+      <CreateDocumentModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSubmit={handleCreateDocument}
+        isLoading={isCreating}
+      />
     </div>
   );
 }
@@ -702,6 +743,24 @@ function TrashIcon({ className }: { className?: string }) {
       <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
       <line x1="10" x2="10" y1="11" y2="17" />
       <line x1="14" x2="14" y1="11" y2="17" />
+    </svg>
+  );
+}
+
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="12" x2="12" y1="5" y2="19" />
+      <line x1="5" x2="19" y1="12" y2="12" />
     </svg>
   );
 }
