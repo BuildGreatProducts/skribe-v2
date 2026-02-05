@@ -195,6 +195,36 @@ export const getCountByProject = query({
   },
 });
 
+// Create feedback entry manually (authenticated users)
+export const createManual = mutation({
+  args: {
+    projectId: v.id("projects"),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyProjectOwnership(ctx, args.projectId);
+
+    // Validate content
+    const content = args.content.trim();
+    if (!content) {
+      throw new Error("Feedback content is required");
+    }
+    if (content.length > 10000) {
+      throw new Error("Feedback content must be less than 10,000 characters");
+    }
+
+    const feedbackId = await ctx.db.insert("feedback", {
+      projectId: args.projectId,
+      content,
+      source: "manual",
+      processed: false,
+      createdAt: Date.now(),
+    });
+
+    return feedbackId;
+  },
+});
+
 // Delete a feedback entry
 export const remove = mutation({
   args: {

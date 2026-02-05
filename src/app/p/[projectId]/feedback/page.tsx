@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
-import { Card, CardContent } from "@/components/ui";
+import { Card, CardContent, Modal, Textarea } from "@/components/ui";
 import { useState } from "react";
 
 export default function FeedbackPage() {
@@ -38,11 +38,15 @@ export default function FeedbackPage() {
   // Mutations
   const generateApiKey = useMutation(api.feedback.generateApiKey);
   const deleteFeedback = useMutation(api.feedback.remove);
+  const createManualFeedback = useMutation(api.feedback.createManual);
 
   // State
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [feedbackContent, setFeedbackContent] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleGenerateApiKey = async () => {
     if (isGenerating) return;
@@ -85,6 +89,24 @@ export default function FeedbackPage() {
       await deleteFeedback({ feedbackId });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete feedback");
+    }
+  };
+
+  const handleAddFeedback = async () => {
+    if (isSubmitting || !feedbackContent.trim()) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await createManualFeedback({
+        projectId: projectId as Id<"projects">,
+        content: feedbackContent.trim(),
+      });
+      setFeedbackContent("");
+      setIsAddModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add feedback");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -254,6 +276,13 @@ export default function FeedbackPage() {
         <h2 className="font-serif text-xl font-bold text-foreground">
           Submissions {feedbackCount !== undefined && `(${feedbackCount})`}
         </h2>
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
+        >
+          <PlusIcon className="h-4 w-4" />
+          Add Feedback
+        </button>
       </div>
 
       {feedbackList === undefined ? (
@@ -323,6 +352,45 @@ export default function FeedbackPage() {
           ))}
         </div>
       )}
+
+      {/* Add Feedback Modal */}
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setFeedbackContent("");
+        }}
+        title="Add Feedback"
+        description="Manually add feedback to your project."
+      >
+        <div className="space-y-4">
+          <Textarea
+            value={feedbackContent}
+            onChange={(e) => setFeedbackContent(e.target.value)}
+            placeholder="Enter feedback content..."
+            rows={4}
+            className="w-full"
+          />
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={() => {
+                setIsAddModalOpen(false);
+                setFeedbackContent("");
+              }}
+              className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAddFeedback}
+              disabled={isSubmitting || !feedbackContent.trim()}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {isSubmitting ? "Adding..." : "Add Feedback"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -396,6 +464,24 @@ function TrashIcon({ className }: { className?: string }) {
       <path d="M3 6h18" />
       <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
       <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    </svg>
+  );
+}
+
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
     </svg>
   );
 }
