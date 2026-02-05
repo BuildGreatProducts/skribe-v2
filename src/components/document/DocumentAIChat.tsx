@@ -4,12 +4,17 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Button, Textarea } from "@/components/ui";
 import { SelectionContextChip, SelectionContext } from "./SelectionContextChip";
 import { PendingUpdatePreview } from "./PendingUpdatePreview";
+import { ImageUploadButton } from "@/components/chat/ImageUploadButton";
+import { ImagePreviewGrid } from "@/components/chat/ImagePreviewGrid";
+import { ImageDropZone, useImagePaste } from "@/components/chat/ImageDropZone";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { cn } from "@/lib/utils";
 import DOMPurify from "dompurify";
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  hasImages?: boolean;
 }
 
 interface DocumentAIChatProps {
@@ -36,6 +41,23 @@ export function DocumentAIChat({
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Image upload state
+  const {
+    pendingImages,
+    isUploading,
+    uploadError,
+    addImages,
+    removeImage,
+    clearImages,
+    uploadAllImages,
+  } = useImageUpload();
+
+  // Enable clipboard paste for images
+  useImagePaste(
+    useCallback((files: File[]) => addImages(files), [addImages]),
+    !isSubmitting
+  );
+
   // AbortController ref for cleanup
   const abortControllerRef = useRef<AbortController | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
@@ -55,7 +77,7 @@ export function DocumentAIChat({
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isSubmitting) return;
+    if ((!inputValue.trim() && pendingImages.length === 0) || isSubmitting) return;
 
     // Abort any previous request
     abortControllerRef.current?.abort();
@@ -63,12 +85,26 @@ export function DocumentAIChat({
     abortControllerRef.current = controller;
 
     const userMessage = inputValue.trim();
+    const hasImages = pendingImages.length > 0;
     setInputValue("");
     setIsSubmitting(true);
     setError(null);
 
+    // Upload images if present
+    let imageIds: string[] = [];
+    if (hasImages) {
+      try {
+        imageIds = await uploadAllImages();
+        clearImages();
+      } catch (uploadErr) {
+        setError(uploadErr instanceof Error ? uploadErr.message : "Failed to upload images");
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     // Add user message to local state
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    setMessages((prev) => [...prev, { role: "user", content: userMessage, hasImages }]);
 
     // Add placeholder for assistant
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
@@ -84,6 +120,7 @@ export function DocumentAIChat({
           documentContent,
           selectionContext: selectedText,
           messageHistory: messages,
+          imageIds: imageIds.length > 0 ? imageIds : undefined,
         }),
         signal: controller.signal,
       });
@@ -173,7 +210,7 @@ export function DocumentAIChat({
       }
       readerRef.current = null;
     }
-  }, [inputValue, isSubmitting, documentId, projectId, documentContent, selectedText, messages]);
+  }, [inputValue, isSubmitting, documentId, projectId, documentContent, selectedText, messages, pendingImages, uploadAllImages, clearImages]);
 
   const handleApplyUpdate = () => {
     if (pendingUpdate) {
@@ -261,7 +298,15 @@ export function DocumentAIChat({
                     <MessageContent content={message.content} />
                   </div>
                 ) : (
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  <>
+                    {message.hasImages && (
+                      <div className="flex items-center gap-1 text-white/70 text-xs mb-1">
+                        <ImageAttachmentIcon className="h-3 w-3" />
+                        <span>Image attached</span>
+                      </div>
+                    )}
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  </>
                 )}
                 {message.role === "assistant" && !message.content && isSubmitting && (
                   <div className="flex items-center gap-1">
@@ -291,31 +336,57 @@ export function DocumentAIChat({
       )}
 
       {/* Input */}
-      <div className="px-4 py-3 border-t border-border">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-          <Textarea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              selectedText
-                ? "How should I change the selected text?"
-                : "How can I help edit this document?"
-            }
-            className="min-h-[80px] text-sm resize-none"
-            disabled={isSubmitting}
-          />
-          <Button
-            type="submit"
-            size="sm"
-            isLoading={isSubmitting}
-            disabled={!inputValue.trim() || isSubmitting}
-            className="self-end rounded-full w-9 h-9 p-0"
-          >
-            <SendIcon className="h-4 w-4" />
-          </Button>
-        </form>
-      </div>
+      <ImageDropZone
+        onFilesDropped={addImages}
+        disabled={isSubmitting || isUploading}
+        className="border-t border-border"
+      >
+        <div className="px-4 py-3">
+          {/* Image preview grid */}
+          {pendingImages.length > 0 && (
+            <ImagePreviewGrid
+              images={pendingImages}
+              onRemove={removeImage}
+              className="mb-2 pb-2 border-b border-border"
+            />
+          )}
+
+          {/* Upload error message */}
+          {uploadError && (
+            <p className="mb-2 text-xs text-red-500">{uploadError}</p>
+          )}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+            <Textarea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                selectedText
+                  ? "How should I change the selected text?"
+                  : "How can I help edit this document?"
+              }
+              className="min-h-[80px] text-sm resize-none"
+              disabled={isSubmitting}
+            />
+            <div className="flex items-center justify-between">
+              <ImageUploadButton
+                onFilesSelected={addImages}
+                disabled={isSubmitting || isUploading}
+              />
+              <Button
+                type="submit"
+                size="sm"
+                isLoading={isSubmitting || isUploading}
+                disabled={(!inputValue.trim() && pendingImages.length === 0) || isSubmitting || isUploading}
+                className="rounded-full w-9 h-9 p-0"
+              >
+                <SendIcon className="h-4 w-4" />
+              </Button>
+            </div>
+          </form>
+        </div>
+      </ImageDropZone>
     </div>
   );
 }
@@ -381,6 +452,25 @@ function SendIcon({ className }: { className?: string }) {
     >
       <path d="m22 2-7 20-4-9-9-4Z" />
       <path d="M22 2 11 13" />
+    </svg>
+  );
+}
+
+function ImageAttachmentIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
     </svg>
   );
 }

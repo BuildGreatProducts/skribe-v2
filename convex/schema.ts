@@ -105,8 +105,16 @@ export default defineSchema({
     agentId: v.id("agents"),
     role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
     content: v.string(),
+    imageIds: v.optional(v.array(v.id("_storage"))),
     createdAt: v.number(),
   }).index("by_agent", ["agentId"]),
+
+  userStorage: defineTable({
+    userId: v.id("users"),
+    totalBytes: v.number(),
+    imageCount: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
 
   agentTemplates: defineTable({
     userId: v.id("users"),

@@ -227,7 +227,7 @@ export const getRecentByProject = query({
   },
 });
 
-// Delete an agent and its messages
+// Delete an agent and its messages (including images)
 export const remove = mutation({
   args: { agentId: v.id("agents") },
   handler: async (ctx, args) => {
@@ -241,14 +241,44 @@ export const remove = mutation({
     // Verify project ownership
     await verifyProjectOwnership(ctx, agent.projectId, user._id);
 
-    // Delete all messages in the agent
+    // Delete all messages in the agent and their associated images
     const messages = await ctx.db
       .query("messages")
       .withIndex("by_agent", (q) => q.eq("agentId", args.agentId))
       .collect();
 
+    let totalImageSize = 0;
+    let totalImageCount = 0;
+
     for (const message of messages) {
+      // Delete associated images
+      if (message.imageIds && message.imageIds.length > 0) {
+        for (const storageId of message.imageIds) {
+          const metadata = await ctx.storage.getMetadata(storageId);
+          if (metadata) {
+            totalImageSize += metadata.size;
+            totalImageCount++;
+            await ctx.storage.delete(storageId);
+          }
+        }
+      }
       await ctx.db.delete(message._id);
+    }
+
+    // Update user storage usage if images were deleted
+    if (totalImageCount > 0) {
+      const storage = await ctx.db
+        .query("userStorage")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .unique();
+
+      if (storage) {
+        await ctx.db.patch(storage._id, {
+          totalBytes: Math.max(0, storage.totalBytes - totalImageSize),
+          imageCount: Math.max(0, storage.imageCount - totalImageCount),
+          updatedAt: Date.now(),
+        });
+      }
     }
 
     // Delete the agent
