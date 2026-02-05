@@ -5,12 +5,14 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useStoreUser } from "@/hooks/use-store-user";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 interface GitHubNavLinkProps {
   currentProjectId: string;
+  collapsed?: boolean;
 }
 
-export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
+export function GitHubNavLink({ currentProjectId, collapsed = false }: GitHubNavLinkProps) {
   const { user: storedUser, isLoading: isUserLoading } = useStoreUser();
   const currentProject = useQuery(
     api.projects.getById,
@@ -25,8 +27,8 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
   // User still loading
   if (isUserLoading) {
     return (
-      <div className="px-3 py-2">
-        <div className="h-10 animate-pulse rounded-lg bg-muted"></div>
+      <div className={cn("py-2", collapsed ? "px-2" : "px-3")}>
+        <div className={cn("animate-pulse rounded-lg bg-muted", collapsed ? "h-10 w-10" : "h-10 w-full")}></div>
       </div>
     );
   }
@@ -34,8 +36,8 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
   // Project query still loading
   if (currentProject === undefined) {
     return (
-      <div className="px-3 py-2">
-        <div className="h-10 animate-pulse rounded-lg bg-muted"></div>
+      <div className={cn("py-2", collapsed ? "px-2" : "px-3")}>
+        <div className={cn("animate-pulse rounded-lg bg-muted", collapsed ? "h-10 w-10" : "h-10 w-full")}></div>
       </div>
     );
   }
@@ -66,13 +68,24 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
   // State 1: GitHub not connected - show connect link
   if (!isGitHubConnected) {
     return (
-      <div className="px-3 py-2">
+      <div className={cn("py-2", collapsed ? "px-2" : "px-3")}>
         <Link
           href="/api/github/auth"
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className={cn(
+            "flex items-center rounded-lg py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            collapsed ? "justify-center px-2" : "gap-3 px-3"
+          )}
+          title={collapsed ? "Connect GitHub" : undefined}
         >
-          <GitHubIcon className="h-5 w-5" />
-          <span>Connect GitHub</span>
+          <GitHubIcon className="h-5 w-5 flex-shrink-0" />
+          <span
+            className={cn(
+              "whitespace-nowrap transition-[opacity,width] duration-300 ease-in-out",
+              collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100 w-auto"
+            )}
+          >
+            Connect GitHub
+          </span>
         </Link>
       </div>
     );
@@ -81,16 +94,24 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
   // State 2: GitHub connected + repo linked - show repo link
   if (hasLinkedRepo && validatedRepoUrl) {
     return (
-      <div className="px-3 py-2">
+      <div className={cn("py-2", collapsed ? "px-2" : "px-3")}>
         <a
           href={validatedRepoUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className={cn(
+            "flex items-center rounded-lg py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            collapsed ? "justify-center px-2" : "gap-3 px-3"
+          )}
+          title={collapsed ? currentProject.githubRepoName : undefined}
         >
-          <GitHubIcon className="h-5 w-5" />
-          <span className="flex-1 truncate">{currentProject.githubRepoName}</span>
-          <ExternalLinkIcon className="h-3.5 w-3.5 flex-shrink-0" />
+          <GitHubIcon className="h-5 w-5 flex-shrink-0" />
+          {!collapsed && (
+            <>
+              <span className="flex-1 truncate">{currentProject.githubRepoName}</span>
+              <ExternalLinkIcon className="h-3.5 w-3.5 flex-shrink-0" />
+            </>
+          )}
         </a>
       </div>
     );
@@ -98,13 +119,24 @@ export function GitHubNavLink({ currentProjectId }: GitHubNavLinkProps) {
 
   // State 3: GitHub connected but no repo linked - show link repo option
   return (
-    <div className="px-3 py-2">
+    <div className={cn("py-2", collapsed ? "px-2" : "px-3")}>
       <Link
         href={`/p/${currentProjectId}/settings`}
-        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className={cn(
+          "flex items-center rounded-lg py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+          collapsed ? "justify-center px-2" : "gap-3 px-3"
+        )}
+        title={collapsed ? "Link Repository" : undefined}
       >
-        <GitHubIcon className="h-5 w-5" />
-        <span>Link Repository</span>
+        <GitHubIcon className="h-5 w-5 flex-shrink-0" />
+        <span
+          className={cn(
+            "whitespace-nowrap transition-[opacity,width] duration-300 ease-in-out",
+            collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100 w-auto"
+          )}
+        >
+          Link Repository
+        </span>
       </Link>
     </div>
   );

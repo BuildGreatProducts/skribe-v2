@@ -9,9 +9,10 @@ import { cn } from "@/lib/utils";
 
 interface ProjectSelectorProps {
   currentProjectId: string;
+  collapsed?: boolean;
 }
 
-export function ProjectSelector({ currentProjectId }: ProjectSelectorProps) {
+export function ProjectSelector({ currentProjectId, collapsed = false }: ProjectSelectorProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -45,36 +46,47 @@ export function ProjectSelector({ currentProjectId }: ProjectSelectorProps) {
 
   if (projects === undefined || currentProject === undefined) {
     return (
-      <div className="px-3 py-2">
-        <div className="h-10 animate-pulse rounded-lg bg-muted"></div>
+      <div className={cn("py-2", collapsed ? "px-2" : "px-3")}>
+        <div className={cn("animate-pulse rounded-lg bg-muted", collapsed ? "h-10 w-10" : "h-10 w-full")}></div>
       </div>
     );
   }
 
   return (
-    <div className="relative px-3 py-2" ref={dropdownRef}>
+    <div className={cn("relative py-2", collapsed ? "px-2" : "px-3")} ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex w-full items-center justify-between rounded-lg border border-border bg-white px-3 py-2 text-left transition-colors hover:bg-muted",
+          "flex items-center rounded-lg border border-border bg-white transition-colors hover:bg-muted",
+          collapsed ? "w-full justify-center p-2" : "w-full justify-between px-3 py-2 text-left",
           isOpen && "ring-2 ring-primary ring-offset-1"
         )}
+        title={collapsed ? currentProject?.name : undefined}
       >
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-foreground">
-            {currentProject?.name || "Select Project"}
-          </p>
-          {currentProject?.githubRepoName && (
-            <p className="truncate text-xs text-muted-foreground">
-              {currentProject.githubRepoName}
-            </p>
-          )}
-        </div>
-        <ChevronIcon className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+        {collapsed ? (
+          <FolderIcon className="h-5 w-5 text-muted-foreground" />
+        ) : (
+          <>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-foreground">
+                {currentProject?.name || "Select Project"}
+              </p>
+              {currentProject?.githubRepoName && (
+                <p className="truncate text-xs text-muted-foreground">
+                  {currentProject.githubRepoName}
+                </p>
+              )}
+            </div>
+            <ChevronIcon className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+          </>
+        )}
       </button>
 
       {isOpen && (
-        <div className="absolute left-3 right-3 top-full z-50 mt-1 rounded-lg border border-border bg-white shadow-lg">
+        <div className={cn(
+          "absolute top-full z-50 mt-1 rounded-lg border border-border bg-white shadow-lg",
+          collapsed ? "left-0 w-48" : "left-3 right-3"
+        )}>
           <div className="max-h-64 overflow-y-auto py-1">
             {projects.map((project) => (
               <button
@@ -162,6 +174,23 @@ function PlusIcon({ className }: { className?: string }) {
     >
       <path d="M5 12h14" />
       <path d="M12 5v14" />
+    </svg>
+  );
+}
+
+function FolderIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
     </svg>
   );
 }
