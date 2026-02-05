@@ -455,6 +455,7 @@ export default function AgentPage() {
                 type="submit"
                 disabled={!inputValue.trim() || isSubmitting}
                 isLoading={isSubmitting}
+                className="rounded-full w-11 h-11 p-0 flex-shrink-0"
               >
                 <SendIcon className="h-5 w-5" />
               </Button>

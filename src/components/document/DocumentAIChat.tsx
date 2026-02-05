@@ -310,10 +310,9 @@ export function DocumentAIChat({
             size="sm"
             isLoading={isSubmitting}
             disabled={!inputValue.trim() || isSubmitting}
-            className="self-end"
+            className="self-end rounded-full w-9 h-9 p-0"
           >
-            <SendIcon className="h-4 w-4 mr-2" />
-            Send
+            <SendIcon className="h-4 w-4" />
           </Button>
         </form>
       </div>
