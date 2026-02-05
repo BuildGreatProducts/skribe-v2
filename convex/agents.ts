@@ -265,20 +265,13 @@ export const remove = mutation({
       await ctx.db.delete(message._id);
     }
 
-    // Update user storage usage if images were deleted
+    // Update user storage usage if images were deleted (on users table)
     if (totalImageCount > 0) {
-      const storage = await ctx.db
-        .query("userStorage")
-        .withIndex("by_user", (q) => q.eq("userId", user._id))
-        .unique();
-
-      if (storage) {
-        await ctx.db.patch(storage._id, {
-          totalBytes: Math.max(0, storage.totalBytes - totalImageSize),
-          imageCount: Math.max(0, storage.imageCount - totalImageCount),
-          updatedAt: Date.now(),
-        });
-      }
+      await ctx.db.patch(user._id, {
+        storageTotalBytes: Math.max(0, (user.storageTotalBytes ?? 0) - totalImageSize),
+        storageImageCount: Math.max(0, (user.storageImageCount ?? 0) - totalImageCount),
+        updatedAt: Date.now(),
+      });
     }
 
     // Delete the agent

@@ -1,6 +1,5 @@
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { Id } from "./_generated/dataModel";
 
 // Storage limits by subscription tier (in bytes)
 const STORAGE_LIMITS = {
@@ -48,30 +47,6 @@ async function requireAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
 }
 
 /**
- * Get or create user storage record.
- */
-async function getOrCreateUserStorage(ctx: MutationCtx, userId: Id<"users">) {
-  const existing = await ctx.db
-    .query("userStorage")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .unique();
-
-  if (existing) {
-    return existing;
-  }
-
-  // Create new storage record
-  const storageId = await ctx.db.insert("userStorage", {
-    userId,
-    totalBytes: 0,
-    imageCount: 0,
-    updatedAt: Date.now(),
-  });
-
-  return (await ctx.db.get(storageId))!;
-}
-
-/**
  * Get user's storage usage and limits.
  */
 export const getUserStorageUsage = query({
@@ -82,18 +57,14 @@ export const getUserStorageUsage = query({
       return null;
     }
 
-    const storage = await ctx.db
-      .query("userStorage")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .unique();
-
     const limit = STORAGE_LIMITS[user.subscriptionTier];
+    const used = user.storageTotalBytes ?? 0;
 
     return {
-      used: storage?.totalBytes ?? 0,
+      used,
       limit,
-      imageCount: storage?.imageCount ?? 0,
-      percentUsed: storage ? Math.round((storage.totalBytes / limit) * 100) : 0,
+      imageCount: user.storageImageCount ?? 0,
+      percentUsed: Math.round((used / limit) * 100),
     };
   },
 });
@@ -101,6 +72,7 @@ export const getUserStorageUsage = query({
 /**
  * Generate an upload URL for a new image.
  * Validates storage limits before allowing upload.
+ * Note: This is an optimistic check - final quota enforcement happens in saveImage.
  */
 export const generateUploadUrl = mutation({
   args: {
@@ -124,13 +96,13 @@ export const generateUploadUrl = mutation({
       );
     }
 
-    // Check storage quota
-    const storage = await getOrCreateUserStorage(ctx, user._id);
+    // Optimistic storage quota check
+    const currentUsage = user.storageTotalBytes ?? 0;
     const limit = STORAGE_LIMITS[user.subscriptionTier];
 
-    if (storage.totalBytes + args.fileSize > limit) {
+    if (currentUsage + args.fileSize > limit) {
       throw new Error(
-        `Storage limit exceeded. You have ${Math.round((limit - storage.totalBytes) / (1024 * 1024))}MB remaining. Upgrade your plan for more storage.`
+        `Storage limit exceeded. You have ${Math.round((limit - currentUsage) / (1024 * 1024))}MB remaining. Upgrade your plan for more storage.`
       );
     }
 
@@ -141,7 +113,8 @@ export const generateUploadUrl = mutation({
 
 /**
  * Save an uploaded image and update storage usage.
- * Returns the storage ID for the image.
+ * Performs authoritative quota enforcement to handle race conditions.
+ * Returns the storage ID for the image, or throws if quota exceeded.
  */
 export const saveImage = mutation({
   args: {
@@ -151,12 +124,30 @@ export const saveImage = mutation({
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
 
-    // Update user storage usage
-    const storage = await getOrCreateUserStorage(ctx, user._id);
+    // Re-read user for authoritative quota check (handles race conditions)
+    const freshUser = await ctx.db.get(user._id);
+    if (!freshUser) {
+      // Delete the uploaded file since user no longer exists
+      await ctx.storage.delete(args.storageId);
+      throw new Error("User not found");
+    }
 
-    await ctx.db.patch(storage._id, {
-      totalBytes: storage.totalBytes + args.fileSize,
-      imageCount: storage.imageCount + 1,
+    const currentUsage = freshUser.storageTotalBytes ?? 0;
+    const limit = STORAGE_LIMITS[freshUser.subscriptionTier];
+
+    // Authoritative quota enforcement
+    if (currentUsage + args.fileSize > limit) {
+      // Delete the uploaded file to free storage
+      await ctx.storage.delete(args.storageId);
+      throw new Error(
+        `Storage limit exceeded. You have ${Math.round((limit - currentUsage) / (1024 * 1024))}MB remaining. Upgrade your plan for more storage.`
+      );
+    }
+
+    // Update user storage usage atomically
+    await ctx.db.patch(user._id, {
+      storageTotalBytes: currentUsage + args.fileSize,
+      storageImageCount: (freshUser.storageImageCount ?? 0) + 1,
       updatedAt: Date.now(),
     });
 
@@ -185,11 +176,9 @@ export const deleteImage = mutation({
     await ctx.storage.delete(args.storageId);
 
     // Update user storage usage
-    const storage = await getOrCreateUserStorage(ctx, user._id);
-
-    await ctx.db.patch(storage._id, {
-      totalBytes: Math.max(0, storage.totalBytes - metadata.size),
-      imageCount: Math.max(0, storage.imageCount - 1),
+    await ctx.db.patch(user._id, {
+      storageTotalBytes: Math.max(0, (user.storageTotalBytes ?? 0) - metadata.size),
+      storageImageCount: Math.max(0, (user.storageImageCount ?? 0) - 1),
       updatedAt: Date.now(),
     });
   },
@@ -218,11 +207,9 @@ export const deleteImages = mutation({
     }
 
     if (deletedCount > 0) {
-      const storage = await getOrCreateUserStorage(ctx, user._id);
-
-      await ctx.db.patch(storage._id, {
-        totalBytes: Math.max(0, storage.totalBytes - totalSize),
-        imageCount: Math.max(0, storage.imageCount - deletedCount),
+      await ctx.db.patch(user._id, {
+        storageTotalBytes: Math.max(0, (user.storageTotalBytes ?? 0) - totalSize),
+        storageImageCount: Math.max(0, (user.storageImageCount ?? 0) - deletedCount),
         updatedAt: Date.now(),
       });
     }

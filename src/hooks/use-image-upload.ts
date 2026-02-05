@@ -32,8 +32,8 @@ export interface UseImageUploadReturn {
   storageUsage: { used: number; limit: number; percentUsed: number } | null;
 
   addImages: (files: FileList | File[]) => Promise<void>;
-  removeImage: (id: string) => void;
-  clearImages: () => void;
+  removeImage: (id: string) => Promise<void>;
+  clearImages: () => Promise<void>;
   uploadAllImages: () => Promise<Id<"_storage">[]>;
 }
 
@@ -157,7 +157,7 @@ export function useImageUpload(): UseImageUploadReturn {
   /**
    * Clear all pending images
    */
-  const clearImages = useCallback(() => {
+  const clearImages = useCallback(async () => {
     // Cancel all uploads
     abortControllersRef.current.forEach((controller) => controller.abort());
     abortControllersRef.current.clear();
@@ -165,16 +165,18 @@ export function useImageUpload(): UseImageUploadReturn {
     // Revoke all preview URLs
     pendingImages.forEach((img) => URL.revokeObjectURL(img.preview));
 
-    // Delete any already uploaded images
-    pendingImages.forEach(async (img) => {
-      if (img.storageId) {
+    // Delete any already uploaded images (await all deletions)
+    const deletePromises = pendingImages
+      .filter((img) => img.storageId)
+      .map(async (img) => {
         try {
-          await deleteImage({ storageId: img.storageId });
+          await deleteImage({ storageId: img.storageId! });
         } catch (error) {
           console.error("Failed to delete image from storage:", error);
         }
-      }
-    });
+      });
+
+    await Promise.all(deletePromises);
 
     setPendingImages([]);
     setUploadError(null);

@@ -49,7 +49,7 @@ export function ImageUploadButton({
         onClick={handleClick}
         disabled={disabled}
         className={cn(
-          "flex items-center justify-center rounded-lg p-2 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex items-center justify-center rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50",
           className
         )}
         title="Attach images (max 3MB each)"

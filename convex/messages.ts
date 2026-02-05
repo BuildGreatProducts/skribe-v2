@@ -208,29 +208,24 @@ export const remove = mutation({
     // Delete associated images and update storage usage
     if (message.imageIds && message.imageIds.length > 0) {
       let totalSize = 0;
+      let deletedCount = 0;
 
       for (const storageId of message.imageIds) {
         const metadata = await ctx.storage.getMetadata(storageId);
         if (metadata) {
           totalSize += metadata.size;
           await ctx.storage.delete(storageId);
+          deletedCount++;
         }
       }
 
-      // Update user storage usage
-      if (totalSize > 0) {
-        const storage = await ctx.db
-          .query("userStorage")
-          .withIndex("by_user", (q) => q.eq("userId", user._id))
-          .unique();
-
-        if (storage) {
-          await ctx.db.patch(storage._id, {
-            totalBytes: Math.max(0, storage.totalBytes - totalSize),
-            imageCount: Math.max(0, storage.imageCount - message.imageIds.length),
-            updatedAt: Date.now(),
-          });
-        }
+      // Update user storage usage (on users table)
+      if (deletedCount > 0) {
+        await ctx.db.patch(user._id, {
+          storageTotalBytes: Math.max(0, (user.storageTotalBytes ?? 0) - totalSize),
+          storageImageCount: Math.max(0, (user.storageImageCount ?? 0) - deletedCount),
+          updatedAt: Date.now(),
+        });
       }
     }
 

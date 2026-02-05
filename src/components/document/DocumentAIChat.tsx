@@ -90,12 +90,12 @@ export function DocumentAIChat({
     setIsSubmitting(true);
     setError(null);
 
-    // Upload images if present
+    // Upload images if present (don't clear until request succeeds)
     let imageIds: string[] = [];
     if (hasImages) {
       try {
         imageIds = await uploadAllImages();
-        clearImages();
+        // Don't clearImages() here - wait for request to succeed
       } catch (uploadErr) {
         setError(uploadErr instanceof Error ? uploadErr.message : "Failed to upload images");
         setIsSubmitting(false);
@@ -186,12 +186,24 @@ export function DocumentAIChat({
           }
         }
       }
+
+      // Request succeeded - now safe to clear pending images
+      if (hasImages && !controller.signal.aborted) {
+        clearImages();
+      }
     } catch (err) {
       // Don't update state if aborted
       if (controller.signal.aborted) return;
 
       console.error("Document AI error:", err);
       setError(err instanceof Error ? err.message : "Something went wrong");
+
+      // Note: Images that were uploaded to storage remain there and are
+      // associated with the message. Since the request failed and no message
+      // was saved server-side, these uploaded images will be orphaned.
+      // For now we leave them as they don't affect the user experience.
+      // A background cleanup job could remove orphaned storage files later.
+
       // Update the placeholder message with error indication
       setMessages((prev) => {
         const updated = [...prev];
