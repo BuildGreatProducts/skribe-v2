@@ -1,5 +1,6 @@
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 
 // Storage limits by subscription tier (in bytes)
 const STORAGE_LIMITS = {
@@ -44,6 +45,45 @@ async function requireAuthenticatedUser(ctx: QueryCtx | MutationCtx) {
     throw new Error("Unauthorized: You must be logged in");
   }
   return user;
+}
+
+/**
+ * Verify that the authenticated user owns the storage file.
+ * Ownership is verified through the chain: message -> agent -> project -> user.
+ * Returns true if owned, false otherwise.
+ */
+async function verifyStorageOwnership(
+  ctx: QueryCtx | MutationCtx,
+  storageId: Id<"_storage">,
+  userId: Id<"users">
+): Promise<boolean> {
+  // Find the message that contains this storageId
+  // We need to scan messages since imageIds is an array field
+  const messages = await ctx.db.query("messages").collect();
+  const message = messages.find(
+    (m) => m.imageIds && m.imageIds.includes(storageId)
+  );
+
+  if (!message) {
+    // Image not associated with any message - could be orphaned or pending
+    // For security, deny access if we can't verify ownership
+    return false;
+  }
+
+  // Get the agent
+  const agent = await ctx.db.get(message.agentId);
+  if (!agent) {
+    return false;
+  }
+
+  // Get the project
+  const project = await ctx.db.get(agent.projectId);
+  if (!project) {
+    return false;
+  }
+
+  // Verify the project belongs to the user
+  return project.userId === userId;
 }
 
 /**
@@ -157,6 +197,7 @@ export const saveImage = mutation({
 
 /**
  * Delete an image and update storage usage.
+ * Verifies ownership before deleting.
  */
 export const deleteImage = mutation({
   args: {
@@ -170,6 +211,12 @@ export const deleteImage = mutation({
     if (!metadata) {
       // File already deleted or doesn't exist
       return;
+    }
+
+    // Verify the user owns this image
+    const isOwner = await verifyStorageOwnership(ctx, args.storageId, user._id);
+    if (!isOwner) {
+      throw new Error("Unauthorized: You do not have permission to delete this image");
     }
 
     // Delete the file from storage
@@ -186,6 +233,7 @@ export const deleteImage = mutation({
 
 /**
  * Delete multiple images (for batch cleanup).
+ * Verifies ownership of each image before deleting.
  */
 export const deleteImages = mutation({
   args: {
@@ -200,6 +248,12 @@ export const deleteImages = mutation({
     for (const storageId of args.storageIds) {
       const metadata = await ctx.storage.getMetadata(storageId);
       if (metadata) {
+        // Verify ownership before deleting
+        const isOwner = await verifyStorageOwnership(ctx, storageId, user._id);
+        if (!isOwner) {
+          // Skip images not owned by user (don't throw to allow partial cleanup)
+          continue;
+        }
         totalSize += metadata.size;
         deletedCount++;
         await ctx.storage.delete(storageId);
@@ -218,27 +272,46 @@ export const deleteImages = mutation({
 
 /**
  * Get a URL for an image.
+ * Verifies ownership before returning the URL.
  */
 export const getImageUrl = query({
   args: {
     storageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+
+    // Verify the user owns this image
+    const isOwner = await verifyStorageOwnership(ctx, args.storageId, user._id);
+    if (!isOwner) {
+      throw new Error("Unauthorized: You do not have permission to access this image");
+    }
+
     return await ctx.storage.getUrl(args.storageId);
   },
 });
 
 /**
  * Get URLs for multiple images.
+ * Verifies ownership of each image before returning URLs.
  */
 export const getImageUrls = query({
   args: {
     storageIds: v.array(v.id("_storage")),
   },
   handler: async (ctx, args) => {
+    const user = await requireAuthenticatedUser(ctx);
+
     const urls: (string | null)[] = [];
     for (const storageId of args.storageIds) {
-      urls.push(await ctx.storage.getUrl(storageId));
+      // Verify ownership for each image
+      const isOwner = await verifyStorageOwnership(ctx, storageId, user._id);
+      if (!isOwner) {
+        // Return null for images the user doesn't own
+        urls.push(null);
+      } else {
+        urls.push(await ctx.storage.getUrl(storageId));
+      }
     }
     return urls;
   },
