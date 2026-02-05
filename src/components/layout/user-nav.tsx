@@ -6,7 +6,11 @@ import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
-export function UserNav() {
+interface UserNavProps {
+  collapsed?: boolean;
+}
+
+export function UserNav({ collapsed = false }: UserNavProps) {
   const { user, isLoaded } = useUser();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -27,8 +31,8 @@ export function UserNav() {
 
   if (!isLoaded) {
     return (
-      <div className="px-3 py-3">
-        <div className="h-12 animate-pulse rounded-lg bg-muted"></div>
+      <div className={cn("py-3", collapsed ? "px-2" : "px-3")}>
+        <div className={cn("animate-pulse rounded-lg bg-muted", collapsed ? "h-10 w-10 mx-auto" : "h-12 w-full")}></div>
       </div>
     );
   }
@@ -57,14 +61,16 @@ export function UserNav() {
         : "bg-muted text-muted-foreground";
 
   return (
-    <div className="px-3 py-3" ref={dropdownRef}>
+    <div className={cn("py-3", collapsed ? "px-2" : "px-3")} ref={dropdownRef}>
       <div className="relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
           className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted",
+            "flex items-center rounded-lg transition-colors hover:bg-muted",
+            collapsed ? "w-full justify-center p-2" : "w-full gap-3 px-3 py-2 text-left",
             isOpen && "bg-muted"
           )}
+          title={collapsed ? user.fullName || user.emailAddresses[0]?.emailAddress : undefined}
         >
           <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full bg-pastel-lavender">
             {user.imageUrl ? (
@@ -79,19 +85,26 @@ export function UserNav() {
               </div>
             )}
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-foreground">
-              {user.fullName || user.emailAddresses[0]?.emailAddress}
-            </p>
-            <span className={cn("inline-block rounded px-1.5 py-0.5 text-xs font-medium", tierColor)}>
-              {tierLabel}
-            </span>
-          </div>
-          <ChevronIcon className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+          {!collapsed && (
+            <>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-foreground">
+                  {user.fullName || user.emailAddresses[0]?.emailAddress}
+                </p>
+                <span className={cn("inline-block rounded px-1.5 py-0.5 text-xs font-medium", tierColor)}>
+                  {tierLabel}
+                </span>
+              </div>
+              <ChevronIcon className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+            </>
+          )}
         </button>
 
         {isOpen && (
-          <div className="absolute bottom-full left-0 right-0 mb-1 rounded-lg border border-border bg-white shadow-lg">
+          <div className={cn(
+            "absolute bottom-full mb-1 rounded-lg border border-border bg-white shadow-lg",
+            collapsed ? "left-0 w-48" : "left-0 right-0"
+          )}>
             <div className="py-1">
               <Link
                 href="/settings"

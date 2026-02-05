@@ -23,9 +23,10 @@ function getAgentColor(index: number): string {
 
 interface RecentAgentsListProps {
   projectId: string;
+  collapsed?: boolean;
 }
 
-export function RecentAgentsList({ projectId }: RecentAgentsListProps) {
+export function RecentAgentsList({ projectId, collapsed = false }: RecentAgentsListProps) {
   const pathname = usePathname();
 
   const recentAgents = useQuery(
@@ -35,13 +36,21 @@ export function RecentAgentsList({ projectId }: RecentAgentsListProps) {
 
   if (recentAgents === undefined) {
     return (
-      <div className="px-3 py-2">
-        <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Recent Agents
-        </h3>
-        <div className="space-y-1">
+      <div className={cn("py-2", collapsed ? "px-2" : "px-3")}>
+        {!collapsed && (
+          <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Recent Agents
+          </h3>
+        )}
+        <div className={cn("space-y-1", collapsed && "flex flex-col items-center")}>
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-8 animate-pulse rounded-lg bg-muted"></div>
+            <div
+              key={i}
+              className={cn(
+                "animate-pulse rounded-lg bg-muted",
+                collapsed ? "h-8 w-8" : "h-8 w-full"
+              )}
+            ></div>
           ))}
         </div>
       </div>
@@ -49,6 +58,9 @@ export function RecentAgentsList({ projectId }: RecentAgentsListProps) {
   }
 
   if (recentAgents.length === 0) {
+    if (collapsed) {
+      return null;
+    }
     return (
       <div className="px-3 py-2">
         <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -62,11 +74,13 @@ export function RecentAgentsList({ projectId }: RecentAgentsListProps) {
   }
 
   return (
-    <div className="px-3 py-2">
-      <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Recent Agents
-      </h3>
-      <ul className="space-y-1">
+    <div className={cn("py-2", collapsed ? "px-2" : "px-3")}>
+      {!collapsed && (
+        <h3 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Recent Agents
+        </h3>
+      )}
+      <ul className={cn("space-y-1", collapsed && "flex flex-col items-center")}>
         {recentAgents.map((agent, index) => {
           const agentPath = `/p/${projectId}/agent/${agent._id}`;
           const isActive = pathname === agentPath;
@@ -77,16 +91,25 @@ export function RecentAgentsList({ projectId }: RecentAgentsListProps) {
               <Link
                 href={agentPath}
                 className={cn(
-                  "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
+                  "flex items-center rounded-lg text-sm transition-colors",
+                  collapsed ? "justify-center p-1.5" : "gap-2 px-3 py-2",
                   isActive
                     ? "bg-muted text-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
+                title={collapsed ? agent.title : undefined}
               >
                 <span className={cn("flex h-5 w-5 flex-shrink-0 items-center justify-center rounded", colorClass)}>
                   <AgentIcon className="h-3 w-3 text-foreground/70" />
                 </span>
-                <span className="truncate">{agent.title}</span>
+                <span
+                  className={cn(
+                    "truncate transition-[opacity,width] duration-300 ease-in-out",
+                    collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100 w-auto"
+                  )}
+                >
+                  {agent.title}
+                </span>
               </Link>
             </li>
           );

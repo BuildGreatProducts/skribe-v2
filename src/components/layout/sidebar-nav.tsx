@@ -6,9 +6,10 @@ import { cn } from "@/lib/utils";
 
 interface SidebarNavProps {
   projectId: string;
+  collapsed?: boolean;
 }
 
-export function SidebarNav({ projectId }: SidebarNavProps) {
+export function SidebarNav({ projectId, collapsed = false }: SidebarNavProps) {
   const pathname = usePathname();
 
   const navItems = [
@@ -34,21 +35,30 @@ export function SidebarNav({ projectId }: SidebarNavProps) {
   ];
 
   return (
-    <nav className="px-3 py-2">
+    <nav className={cn("py-2", collapsed ? "px-2" : "px-3")}>
       <ul className="space-y-1">
         {navItems.map((item) => (
           <li key={item.href}>
             <Link
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
+                collapsed ? "justify-center px-2" : "gap-3 px-3",
                 item.isActive
                   ? "bg-muted text-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
+              title={collapsed ? item.label : undefined}
             >
-              <item.icon className="h-5 w-5" />
-              {item.label}
+              <item.icon className="h-5 w-5 flex-shrink-0" />
+              <span
+                className={cn(
+                  "whitespace-nowrap transition-[opacity,width] duration-300 ease-in-out",
+                  collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100 w-auto"
+                )}
+              >
+                {item.label}
+              </span>
             </Link>
           </li>
         ))}
