@@ -10,4 +10,5 @@ export {
 } from "./card";
 export { Input, type InputProps } from "./input";
 export { Modal, type ModalProps } from "./modal";
+export { Select, type SelectProps, type SelectOption } from "./select";
 export { Textarea, type TextareaProps } from "./textarea";
