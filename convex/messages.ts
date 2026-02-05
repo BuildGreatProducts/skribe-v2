@@ -145,6 +145,7 @@ export const create = mutation({
     agentId: v.id("agents"),
     role: messageRoles,
     content: v.string(),
+    imageIds: v.optional(v.array(v.id("_storage"))),
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
@@ -159,6 +160,7 @@ export const create = mutation({
       agentId: args.agentId,
       role: args.role,
       content: args.content,
+      imageIds: args.imageIds,
       createdAt: now,
     });
 
@@ -194,14 +196,38 @@ export const update = mutation({
   },
 });
 
-// Delete a message
+// Delete a message and its associated images
 export const remove = mutation({
   args: { messageId: v.id("messages") },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
 
     // Verify message ownership
-    await verifyMessageOwnership(ctx, args.messageId, user._id);
+    const { message } = await verifyMessageOwnership(ctx, args.messageId, user._id);
+
+    // Delete associated images and update storage usage
+    if (message.imageIds && message.imageIds.length > 0) {
+      let totalSize = 0;
+      let deletedCount = 0;
+
+      for (const storageId of message.imageIds) {
+        const metadata = await ctx.storage.getMetadata(storageId);
+        if (metadata) {
+          totalSize += metadata.size;
+          await ctx.storage.delete(storageId);
+          deletedCount++;
+        }
+      }
+
+      // Update user storage usage (on users table)
+      if (deletedCount > 0) {
+        await ctx.db.patch(user._id, {
+          storageTotalBytes: Math.max(0, (user.storageTotalBytes ?? 0) - totalSize),
+          storageImageCount: Math.max(0, (user.storageImageCount ?? 0) - deletedCount),
+          updatedAt: Date.now(),
+        });
+      }
+    }
 
     await ctx.db.delete(args.messageId);
   },

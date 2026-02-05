@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
       documentContent,
       selectionContext,
       messageHistory,
+      imageIds,
     } = body as {
       documentId: string;
       projectId: string;
@@ -54,13 +55,14 @@ export async function POST(request: NextRequest) {
       documentContent: string;
       selectionContext?: SelectionContext;
       messageHistory: ChatMessage[];
+      imageIds?: string[];
     };
 
-    if (!documentId || !projectId || !message || documentContent === undefined) {
+    if (!documentId || !projectId || (message === undefined && (!imageIds || imageIds.length === 0)) || documentContent === undefined) {
       return NextResponse.json(
         {
           error:
-            "Missing required fields: documentId, projectId, message, documentContent",
+            "Missing required fields: documentId, projectId, message or imageIds, documentContent",
         },
         { status: 400 }
       );
@@ -99,6 +101,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Fetch image URLs if images are attached
+    let imageUrls: string[] = [];
+    if (imageIds && imageIds.length > 0) {
+      const urls = await convex.query(api.storage.getImageUrls, {
+        storageIds: imageIds as Id<"_storage">[],
+      });
+      imageUrls = urls.filter((url): url is string => url !== null);
+    }
+
     // Format messages for Claude API
     const claudeMessages: Anthropic.MessageParam[] = (messageHistory || [])
       .filter((m) => m.content.trim() !== "")
@@ -107,10 +118,32 @@ export async function POST(request: NextRequest) {
         content: m.content,
       }));
 
+    // Build user message content with optional images
+    const userMessageContent: Anthropic.ContentBlockParam[] = [];
+
+    // Add images first (if any)
+    for (const url of imageUrls) {
+      userMessageContent.push({
+        type: "image",
+        source: {
+          type: "url",
+          url,
+        },
+      });
+    }
+
+    // Add text message (if any)
+    if (message && message.trim()) {
+      userMessageContent.push({
+        type: "text",
+        text: message,
+      });
+    }
+
     // Add the new user message
     claudeMessages.push({
       role: "user" as const,
-      content: message,
+      content: userMessageContent,
     });
 
     // Initialize Anthropic client

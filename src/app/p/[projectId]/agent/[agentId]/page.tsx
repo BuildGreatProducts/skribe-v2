@@ -7,8 +7,13 @@ import { Id } from "../../../../../../convex/_generated/dataModel";
 import { Button, Textarea } from "@/components/ui";
 import { EditAgentModal } from "@/components/chat/agent";
 import { DocumentCard, AgentDocumentPanel } from "@/components/chat";
+import { ImageUploadButton } from "@/components/chat/ImageUploadButton";
+import { ImagePreviewGrid } from "@/components/chat/ImagePreviewGrid";
+import { ChatImageDisplay } from "@/components/chat/ChatImageDisplay";
+import { ImageDropZone, useImagePaste } from "@/components/chat/ImageDropZone";
 import { SelectionContextChip } from "@/components/document/SelectionContextChip";
 import { useStoreUser } from "@/hooks/use-store-user";
+import { useImageUpload } from "@/hooks/use-image-upload";
 import { useState, useRef, useEffect, useCallback } from "react";
 import DOMPurify from "dompurify";
 import { SelectionContext } from "@/hooks/use-text-selection";
@@ -113,6 +118,23 @@ export default function AgentPage() {
   const [activeDocumentContent, setActiveDocumentContent] = useState("");
   const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
 
+  // Image upload state
+  const {
+    pendingImages,
+    isUploading,
+    uploadError,
+    addImages,
+    removeImage,
+    clearImages,
+    uploadAllImages,
+  } = useImageUpload();
+
+  // Enable clipboard paste for images
+  useImagePaste(
+    useCallback((files: File[]) => addImages(files), [addImages]),
+    !isSubmitting
+  );
+
   // Fetch documents for the project
   const projectDocuments = useQuery(
     api.documents.getByProject,
@@ -170,7 +192,7 @@ export default function AgentPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isSubmitting || !agentId) return;
+    if ((!inputValue.trim() && pendingImages.length === 0) || isSubmitting || !agentId) return;
 
     const userMessage = inputValue.trim();
     setInputValue("");
@@ -179,11 +201,19 @@ export default function AgentPage() {
     let assistantMessageId: Id<"messages"> | null = null;
 
     try {
-      // Create user message
+      // Upload any pending images first
+      let imageIds: Id<"_storage">[] = [];
+      if (pendingImages.length > 0) {
+        imageIds = await uploadAllImages();
+        clearImages();
+      }
+
+      // Create user message with images
       await createMessage({
         agentId: agentId as Id<"agents">,
         role: "user",
         content: userMessage,
+        imageIds: imageIds.length > 0 ? imageIds : undefined,
       });
 
       // Create placeholder for assistant message
@@ -201,6 +231,11 @@ export default function AgentPage() {
         projectId,
         message: userMessage,
       };
+
+      // Include image IDs if present
+      if (imageIds.length > 0) {
+        requestBody.imageIds = imageIds;
+      }
 
       // Include document context if panel is open
       if (isPanelOpen && activeDocumentId) {
@@ -430,40 +465,63 @@ export default function AgentPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-2xl shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_12px_-4px_rgb(0_0_0/0.05)] p-4">
-            <form
-              onSubmit={handleSubmit}
-              className="flex items-end gap-3"
-            >
-              <div className="flex-1">
-                <Textarea
-                  ref={textareaRef}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={
-                    selectionContext
-                      ? "Ask about or edit the selected text..."
-                      : "Type your message..."
-                  }
-                  rows={1}
-                  className="min-h-[44px] max-h-32 resize-none border-0 shadow-none focus:ring-0"
-                  disabled={isSubmitting}
+          <ImageDropZone
+            onFilesDropped={addImages}
+            disabled={isSubmitting || isUploading}
+          >
+            <div className="bg-white rounded-2xl shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_12px_-4px_rgb(0_0_0/0.05)] p-4">
+              {/* Image preview grid */}
+              {pendingImages.length > 0 && (
+                <ImagePreviewGrid
+                  images={pendingImages}
+                  onRemove={removeImage}
+                  className="mb-3 border-b border-neutral-100 pb-3"
                 />
-              </div>
-              <Button
-                type="submit"
-                disabled={!inputValue.trim() || isSubmitting}
-                isLoading={isSubmitting}
-                className="rounded-full w-11 h-11 p-0 flex-shrink-0"
+              )}
+
+              {/* Upload error message */}
+              {uploadError && (
+                <p className="mb-2 text-xs text-red-500">{uploadError}</p>
+              )}
+
+              <form
+                onSubmit={handleSubmit}
+                className="flex items-end gap-3"
               >
-                <SendIcon className="h-5 w-5" />
-              </Button>
-            </form>
-            <p className="mt-2 text-xs text-muted-foreground text-center">
-              Press Enter to send, Shift+Enter for new line
-            </p>
-          </div>
+                <ImageUploadButton
+                  onFilesSelected={addImages}
+                  disabled={isSubmitting || isUploading}
+                />
+                <div className="flex-1">
+                  <Textarea
+                    ref={textareaRef}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={
+                      selectionContext
+                        ? "Ask about or edit the selected text..."
+                        : "Type your message..."
+                    }
+                    rows={1}
+                    className="min-h-[44px] max-h-32 resize-none border-0 shadow-none focus:ring-0"
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={(!inputValue.trim() && pendingImages.length === 0) || isSubmitting || isUploading}
+                  isLoading={isSubmitting || isUploading}
+                  className="rounded-full w-11 h-11 p-0 flex-shrink-0"
+                >
+                  <SendIcon className="h-5 w-5" />
+                </Button>
+              </form>
+              <p className="mt-2 text-xs text-muted-foreground text-center">
+                Press Enter to send, Shift+Enter for new line
+              </p>
+            </div>
+          </ImageDropZone>
         </div>
       </div>
 
@@ -510,6 +568,7 @@ function MessageBubble({
     _id: string;
     role: "user" | "assistant" | "system";
     content: string;
+    imageIds?: Id<"_storage">[];
     createdAt: number;
   };
   onOpenDocument?: (documentId: Id<"documents">) => void;
@@ -546,6 +605,15 @@ function MessageBubble({
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-sans">
             <SearchIcon className="h-3 w-3" />
             <span>Searched the web</span>
+          </div>
+        )}
+
+        {/* Display attached images (for user messages) */}
+        {isUser && message.imageIds && message.imageIds.length > 0 && (
+          <div
+            className="rounded-2xl rounded-tr-none bg-secondary p-3 shadow-sm"
+          >
+            <ChatImageDisplay imageIds={message.imageIds} />
           </div>
         )}
 

@@ -27,6 +27,9 @@ export default defineSchema({
     trialEndsAt: v.optional(v.number()),
     subscriptionEndsAt: v.optional(v.number()),
     polarCustomerId: v.optional(v.string()),
+    // Storage usage tracking (folded from userStorage)
+    storageTotalBytes: v.optional(v.number()),
+    storageImageCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -105,6 +108,7 @@ export default defineSchema({
     agentId: v.id("agents"),
     role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
     content: v.string(),
+    imageIds: v.optional(v.array(v.id("_storage"))),
     createdAt: v.number(),
   }).index("by_agent", ["agentId"]),
 

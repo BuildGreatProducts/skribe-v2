@@ -143,6 +143,7 @@ export async function POST(request: NextRequest) {
       agentId,
       projectId,
       message,
+      imageIds,
       activeDocumentId,
       activeDocumentContent,
       selectionContext,
@@ -150,14 +151,15 @@ export async function POST(request: NextRequest) {
       agentId: string;
       projectId: string;
       message: string;
+      imageIds?: string[];
       activeDocumentId?: string;
       activeDocumentContent?: string;
       selectionContext?: SelectionContext;
     };
 
-    if (!agentId || !projectId || !message) {
+    if (!agentId || !projectId || (message === undefined && (!imageIds || imageIds.length === 0))) {
       return NextResponse.json(
-        { error: "Missing required fields: agentId, projectId, message" },
+        { error: "Missing required fields: agentId, projectId, and message or imageIds" },
         { status: 400 }
       );
     }
@@ -400,6 +402,15 @@ When creating or updating documents:
       ? [...baseTools, WEB_SEARCH_TOOL]
       : baseTools;
 
+    // Fetch image URLs if images are attached
+    let imageUrls: string[] = [];
+    if (imageIds && imageIds.length > 0) {
+      const urls = await convex.query(api.storage.getImageUrls, {
+        storageIds: imageIds as Id<"_storage">[],
+      });
+      imageUrls = urls.filter((url): url is string => url !== null);
+    }
+
     // Format messages for Claude API
     const claudeMessages: Anthropic.MessageParam[] = messages
       .filter((m) => m.role !== "system" && m.content.trim() !== "")
@@ -408,10 +419,32 @@ When creating or updating documents:
         content: m.content,
       }));
 
+    // Build user message content with optional images
+    const userMessageContent: Anthropic.ContentBlockParam[] = [];
+
+    // Add images first (if any)
+    for (const url of imageUrls) {
+      userMessageContent.push({
+        type: "image",
+        source: {
+          type: "url",
+          url,
+        },
+      });
+    }
+
+    // Add text message (if any)
+    if (message && message.trim()) {
+      userMessageContent.push({
+        type: "text",
+        text: message,
+      });
+    }
+
     // Add the new user message
     claudeMessages.push({
       role: "user" as const,
-      content: message,
+      content: userMessageContent,
     });
 
     // Check for API key
