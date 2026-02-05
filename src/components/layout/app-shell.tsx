@@ -19,16 +19,14 @@ interface AppShellProps {
 export function AppShell({ projectId, children }: AppShellProps) {
   const { user: storedUser } = useStoreUser();
   const [now, setNow] = useState<number | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState<boolean | null>(null);
 
   // Set current time after mount to avoid hydration issues
   // Also restore collapsed state from localStorage
   useEffect(() => {
     setNow(Date.now());
     const saved = localStorage.getItem("sidebar-collapsed");
-    if (saved === "true") {
-      setCollapsed(true);
-    }
+    setCollapsed(saved === "true");
   }, []);
 
   // Persist collapsed state to localStorage
@@ -54,8 +52,8 @@ export function AppShell({ projectId, children }: AppShellProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-4 top-4 bottom-4 z-30 flex flex-col bg-white rounded-2xl shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_12px_-4px_rgb(0_0_0/0.05)] transition-[width] duration-300 ease-in-out",
-          collapsed ? "w-16" : "w-64"
+          "fixed left-4 top-4 bottom-4 z-30 flex flex-col bg-white rounded-2xl shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_12px_-4px_rgb(0_0_0/0.05)] transition-[width,opacity] duration-300 ease-in-out",
+          collapsed === null ? "opacity-0 pointer-events-none w-64" : collapsed ? "w-16" : "w-64"
         )}
       >
         {/* Logo and Toggle */}
@@ -96,28 +94,28 @@ export function AppShell({ projectId, children }: AppShellProps) {
         )}
 
         {/* Project Selector */}
-        <ProjectSelector currentProjectId={projectId} collapsed={collapsed} />
+        <ProjectSelector currentProjectId={projectId} collapsed={collapsed ?? false} />
 
         {/* GitHub Link */}
-        <GitHubNavLink currentProjectId={projectId} collapsed={collapsed} />
+        <GitHubNavLink currentProjectId={projectId} collapsed={collapsed ?? false} />
 
         {/* Navigation */}
-        <SidebarNav projectId={projectId} collapsed={collapsed} />
+        <SidebarNav projectId={projectId} collapsed={collapsed ?? false} />
 
         {/* Recent Agents */}
         <div className="flex-1 overflow-y-auto">
-          <RecentAgentsList projectId={projectId} collapsed={collapsed} />
+          <RecentAgentsList projectId={projectId} collapsed={collapsed ?? false} />
         </div>
 
         {/* User Nav */}
-        <UserNav collapsed={collapsed} />
+        <UserNav collapsed={collapsed ?? false} />
       </aside>
 
       {/* Main Content */}
       <div
         className={cn(
           "flex-1 pt-4 pr-8 transition-[padding] duration-300 ease-in-out",
-          collapsed ? "pl-24" : "pl-72"
+          collapsed === true ? "pl-24" : "pl-72"
         )}
       >
         {/* Trial Banner */}
