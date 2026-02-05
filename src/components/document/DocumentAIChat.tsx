@@ -250,10 +250,10 @@ export function DocumentAIChat({
             >
               <div
                 className={cn(
-                  "max-w-[85%] rounded-xl px-4 py-2.5",
+                  "max-w-[85%]",
                   message.role === "user"
-                    ? "bg-primary text-white"
-                    : "bg-muted text-foreground"
+                    ? "rounded-xl px-4 py-2.5 bg-primary text-white"
+                    : "font-serif text-foreground"
                 )}
               >
                 {message.role === "assistant" ? (

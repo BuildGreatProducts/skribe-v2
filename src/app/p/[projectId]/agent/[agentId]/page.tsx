@@ -397,11 +397,8 @@ export default function AgentPage() {
 
           {/* Typing indicator */}
           {awaitingFirstChunk && (
-            <div className="flex items-start gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
-                <span className="text-sm font-medium text-white">S</span>
-              </div>
-              <div className="rounded-2xl rounded-tl-none bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-start">
+              <div className="font-serif">
                 <div className="flex gap-1">
                   <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: "0ms" }}></span>
                   <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: "150ms" }}></span>
@@ -541,20 +538,11 @@ function MessageBubble({
   }, [] as WebSearchCitation[]);
 
   return (
-    <div className={`flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
-      <div
-        className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
-          isUser ? "bg-secondary" : "bg-primary"
-        }`}
-      >
-        <span className="text-sm font-medium text-white">
-          {isUser ? "U" : "S"}
-        </span>
-      </div>
-      <div className="max-w-[80%] space-y-2">
+    <div className={`flex items-start ${isUser ? "justify-end" : "justify-start"}`}>
+      <div className={`max-w-[80%] space-y-2 ${isUser ? "" : "font-serif"}`}>
         {/* Web search indicator */}
         {hasWebSearch && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-sans">
             <SearchIcon className="h-3 w-3" />
             <span>Searched the web</span>
           </div>
@@ -563,10 +551,10 @@ function MessageBubble({
         {/* Main message content */}
         {cleanContent && (
           <div
-            className={`rounded-2xl p-4 shadow-sm ${
+            className={`${
               isUser
-                ? "rounded-tr-none bg-secondary text-white"
-                : "rounded-tl-none bg-white"
+                ? "rounded-2xl rounded-tr-none bg-secondary text-white p-4 shadow-sm"
+                : ""
             }`}
           >
             <div className="prose prose-sm max-w-none">
@@ -618,7 +606,7 @@ function MessageBubble({
 
         {/* Show placeholder if no content yet */}
         {!cleanContent && documentCards.length === 0 && (
-          <div className="rounded-2xl rounded-tl-none bg-white p-4 shadow-sm">
+          <div>
             <span className="text-muted-foreground italic">...</span>
           </div>
         )}
