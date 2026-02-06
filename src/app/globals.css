@@ -3,7 +3,7 @@
 :root {
   /* Fonts */
   --font-figtree: 'Figtree', Helvetica, Arial, sans-serif;
-  --font-castoro: 'Castoro', Georgia, serif;
+  --font-besley: 'Besley', Georgia, serif;
 
   /* Background colors */
   --background: #ffffff;
@@ -67,7 +67,7 @@
   --color-pastel-peach: var(--pastel-peach);
   --color-pastel-lemon: var(--pastel-lemon);
   --font-sans: var(--font-figtree);
-  --font-serif: var(--font-castoro);
+  --font-serif: var(--font-besley);
   --shadow-soft: var(--shadow-soft);
 }
 
@@ -79,7 +79,7 @@ body {
 
 /* Typography */
 h1, h2 {
-  font-family: 'Castoro', Georgia, serif;
+  font-family: 'Besley', Georgia, serif;
   font-weight: 400;
   letter-spacing: -0.02em;
 }
@@ -90,12 +90,12 @@ h3, h4, h5, h6 {
 }
 
 .font-serif {
-  font-family: 'Castoro', Georgia, serif;
+  font-family: 'Besley', Georgia, serif;
 }
 
 /* Logo specific styling - tight tracking */
 .logo-text {
-  font-family: 'Castoro', Georgia, serif;
+  font-family: 'Besley', Georgia, serif;
   font-style: italic;
   font-weight: 400;
   letter-spacing: -0.03em;
