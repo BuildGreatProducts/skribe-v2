@@ -2,12 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { Button, Modal, Input, Textarea } from "@/components/ui";
+import { AgentToolToggles } from "./agent-tool-toggles";
 
 interface CustomAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (title: string, systemPrompt: string) => void;
+  onSubmit: (
+    title: string,
+    systemPrompt: string,
+    webSearchEnabled: boolean,
+    codebaseEnabled: boolean
+  ) => void;
   isLoading?: boolean;
+  githubConnected: boolean;
+  repoLinked: boolean;
 }
 
 export function CustomAgentModal({
@@ -15,9 +23,13 @@ export function CustomAgentModal({
   onClose,
   onSubmit,
   isLoading = false,
+  githubConnected,
+  repoLinked,
 }: CustomAgentModalProps) {
   const [title, setTitle] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [codebaseEnabled, setCodebaseEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Reset form state when modal closes
@@ -25,6 +37,8 @@ export function CustomAgentModal({
     if (!isOpen) {
       setTitle("");
       setSystemPrompt("");
+      setWebSearchEnabled(false);
+      setCodebaseEnabled(false);
       setError(null);
     }
   }, [isOpen]);
@@ -38,12 +52,19 @@ export function CustomAgentModal({
       return;
     }
 
-    onSubmit(title.trim(), systemPrompt.trim());
+    onSubmit(
+      title.trim(),
+      systemPrompt.trim(),
+      webSearchEnabled,
+      codebaseEnabled
+    );
   };
 
   const handleClose = () => {
     setTitle("");
     setSystemPrompt("");
+    setWebSearchEnabled(false);
+    setCodebaseEnabled(false);
     setError(null);
     onClose();
   };
@@ -78,6 +99,15 @@ export function CustomAgentModal({
           onChange={(e) => setSystemPrompt(e.target.value)}
           rows={6}
           helperText="Leave empty to use the default advisor prompt. The AI will always have access to your project documents."
+        />
+
+        <AgentToolToggles
+          webSearchEnabled={webSearchEnabled}
+          onWebSearchChange={setWebSearchEnabled}
+          codebaseEnabled={codebaseEnabled}
+          onCodebaseChange={setCodebaseEnabled}
+          githubConnected={githubConnected}
+          repoLinked={repoLinked}
         />
 
         <div className="flex justify-end gap-3 pt-2">

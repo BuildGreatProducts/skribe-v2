@@ -70,6 +70,8 @@ export const create = mutation({
     name: v.string(),
     description: v.optional(v.string()),
     systemPrompt: v.string(),
+    webSearchEnabled: v.optional(v.boolean()),
+    codebaseEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
@@ -81,6 +83,8 @@ export const create = mutation({
       name: args.name,
       description: args.description,
       systemPrompt: args.systemPrompt,
+      webSearchEnabled: args.webSearchEnabled,
+      codebaseEnabled: args.codebaseEnabled,
       createdAt: now,
       updatedAt: now,
     });
@@ -96,6 +100,8 @@ export const update = mutation({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     systemPrompt: v.optional(v.string()),
+    webSearchEnabled: v.optional(v.boolean()),
+    codebaseEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);

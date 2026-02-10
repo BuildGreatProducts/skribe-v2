@@ -100,7 +100,7 @@ export default function AgentPage() {
   const router = useRouter();
   const projectId = params.projectId as string;
   const agentId = params.agentId as string;
-  useStoreUser(); // Ensure user is synced to Convex
+  const { user: storedUser } = useStoreUser(); // Ensure user is synced to Convex
 
   const [inputValue, setInputValue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -340,7 +340,12 @@ export default function AgentPage() {
     }
   };
 
-  const handleUpdateAgent = async (title: string, systemPrompt: string) => {
+  const handleUpdateAgent = async (
+    title: string,
+    systemPrompt: string,
+    webSearchEnabled: boolean,
+    codebaseEnabled: boolean
+  ) => {
     if (!agentId) return;
 
     setIsUpdatingAgent(true);
@@ -350,6 +355,8 @@ export default function AgentPage() {
         agentId: agentId as Id<"agents">,
         title,
         systemPrompt: systemPrompt || undefined,
+        webSearchEnabled,
+        codebaseEnabled,
       });
       setIsEditModalOpen(false);
     } catch (error) {
@@ -404,15 +411,13 @@ export default function AgentPage() {
               {project?.name}
             </p>
           </div>
-          {agentData.type === "custom" && (
-            <button
-              onClick={() => setIsEditModalOpen(true)}
-              className="rounded-lg p-2 hover:bg-white/50 transition-colors"
-              aria-label="Edit agent settings"
-            >
-              <SettingsIcon className="h-5 w-5 text-muted-foreground" />
-            </button>
-          )}
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="rounded-lg p-2 hover:bg-white/50 transition-colors"
+            aria-label="Edit agent settings"
+          >
+            <SettingsIcon className="h-5 w-5 text-muted-foreground" />
+          </button>
         </div>
       </header>
 
@@ -539,20 +544,22 @@ export default function AgentPage() {
       </div>
 
       {/* Edit Agent Modal */}
-      {agentData.type === "custom" && (
-        <EditAgentModal
-          isOpen={isEditModalOpen}
-          onClose={() => {
-            setIsEditModalOpen(false);
-            setUpdateError(null);
-          }}
-          onSubmit={handleUpdateAgent}
-          isLoading={isUpdatingAgent}
-          initialTitle={agentData.title}
-          initialSystemPrompt={agentData.systemPrompt || ""}
-          externalError={updateError}
-        />
-      )}
+      <EditAgentModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setUpdateError(null);
+        }}
+        onSubmit={handleUpdateAgent}
+        isLoading={isUpdatingAgent}
+        initialTitle={agentData.title}
+        initialSystemPrompt={agentData.systemPrompt || ""}
+        initialWebSearchEnabled={agentData.webSearchEnabled ?? false}
+        initialCodebaseEnabled={agentData.codebaseEnabled ?? false}
+        githubConnected={storedUser?.githubConnected ?? false}
+        repoLinked={!!project?.githubRepoName}
+        externalError={updateError}
+      />
 
       {/* Document Panel */}
       <AgentDocumentPanel

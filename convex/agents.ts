@@ -219,6 +219,8 @@ export const create = mutation({
     title: v.string(),
     systemPrompt: v.optional(v.string()),
     documentId: v.optional(v.id("documents")),
+    webSearchEnabled: v.optional(v.boolean()),
+    codebaseEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
@@ -242,6 +244,8 @@ export const create = mutation({
       type: args.type,
       title: args.title,
       systemPrompt: args.systemPrompt,
+      webSearchEnabled: args.webSearchEnabled,
+      codebaseEnabled: args.codebaseEnabled,
       createdAt: now,
       updatedAt: now,
     });
@@ -257,6 +261,8 @@ export const update = mutation({
     title: v.optional(v.string()),
     systemPrompt: v.optional(v.string()),
     documentId: v.optional(v.id("documents")),
+    webSearchEnabled: v.optional(v.boolean()),
+    codebaseEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
