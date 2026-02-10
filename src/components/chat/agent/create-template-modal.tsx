@@ -2,12 +2,21 @@
 
 import { useState, useEffect } from "react";
 import { Button, Modal, Input, Textarea } from "@/components/ui";
+import { AgentToolToggles } from "./agent-tool-toggles";
 
 interface CreateTemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (name: string, description: string, systemPrompt: string) => void;
+  onSubmit: (
+    name: string,
+    description: string,
+    systemPrompt: string,
+    webSearchEnabled: boolean,
+    codebaseEnabled: boolean
+  ) => void;
   isLoading?: boolean;
+  githubConnected: boolean;
+  repoLinked: boolean;
 }
 
 export function CreateTemplateModal({
@@ -15,10 +24,14 @@ export function CreateTemplateModal({
   onClose,
   onSubmit,
   isLoading = false,
+  githubConnected,
+  repoLinked,
 }: CreateTemplateModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [codebaseEnabled, setCodebaseEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Reset form state when modal closes
@@ -27,6 +40,8 @@ export function CreateTemplateModal({
       setName("");
       setDescription("");
       setSystemPrompt("");
+      setWebSearchEnabled(false);
+      setCodebaseEnabled(false);
       setError(null);
     }
   }, [isOpen]);
@@ -45,13 +60,21 @@ export function CreateTemplateModal({
       return;
     }
 
-    onSubmit(name.trim(), description.trim(), systemPrompt.trim());
+    onSubmit(
+      name.trim(),
+      description.trim(),
+      systemPrompt.trim(),
+      webSearchEnabled,
+      codebaseEnabled
+    );
   };
 
   const handleClose = () => {
     setName("");
     setDescription("");
     setSystemPrompt("");
+    setWebSearchEnabled(false);
+    setCodebaseEnabled(false);
     setError(null);
     onClose();
   };
@@ -97,6 +120,15 @@ export function CreateTemplateModal({
           helperText="This prompt guides the AI's behavior when using this template."
         />
 
+        <AgentToolToggles
+          webSearchEnabled={webSearchEnabled}
+          onWebSearchChange={setWebSearchEnabled}
+          codebaseEnabled={codebaseEnabled}
+          onCodebaseChange={setCodebaseEnabled}
+          githubConnected={githubConnected}
+          repoLinked={repoLinked}
+        />
+
         <div className="flex justify-end gap-3 pt-2">
           <Button type="button" variant="outline" onClick={handleClose}>
             Cancel
@@ -113,11 +145,21 @@ export function CreateTemplateModal({
 interface EditTemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (name: string, description: string, systemPrompt: string) => void;
+  onSubmit: (
+    name: string,
+    description: string,
+    systemPrompt: string,
+    webSearchEnabled: boolean,
+    codebaseEnabled: boolean
+  ) => void;
   isLoading?: boolean;
   initialName: string;
   initialDescription: string;
   initialSystemPrompt: string;
+  initialWebSearchEnabled: boolean;
+  initialCodebaseEnabled: boolean;
+  githubConnected: boolean;
+  repoLinked: boolean;
   externalError?: string | null;
 }
 
@@ -129,11 +171,21 @@ export function EditTemplateModal({
   initialName,
   initialDescription,
   initialSystemPrompt,
+  initialWebSearchEnabled,
+  initialCodebaseEnabled,
+  githubConnected,
+  repoLinked,
   externalError,
 }: EditTemplateModalProps) {
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const [systemPrompt, setSystemPrompt] = useState(initialSystemPrompt);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(
+    initialWebSearchEnabled
+  );
+  const [codebaseEnabled, setCodebaseEnabled] = useState(
+    initialCodebaseEnabled
+  );
   const [error, setError] = useState<string | null>(null);
 
   // Sync form state with initial values when modal opens
@@ -142,9 +194,18 @@ export function EditTemplateModal({
       setName(initialName);
       setDescription(initialDescription);
       setSystemPrompt(initialSystemPrompt);
+      setWebSearchEnabled(initialWebSearchEnabled);
+      setCodebaseEnabled(initialCodebaseEnabled);
       setError(null);
     }
-  }, [isOpen, initialName, initialDescription, initialSystemPrompt]);
+  }, [
+    isOpen,
+    initialName,
+    initialDescription,
+    initialSystemPrompt,
+    initialWebSearchEnabled,
+    initialCodebaseEnabled,
+  ]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,7 +221,13 @@ export function EditTemplateModal({
       return;
     }
 
-    onSubmit(name.trim(), description.trim(), systemPrompt.trim());
+    onSubmit(
+      name.trim(),
+      description.trim(),
+      systemPrompt.trim(),
+      webSearchEnabled,
+      codebaseEnabled
+    );
   };
 
   const handleClose = () => {
@@ -209,6 +276,15 @@ export function EditTemplateModal({
           rows={8}
           required
           helperText="This prompt guides the AI's behavior when using this template."
+        />
+
+        <AgentToolToggles
+          webSearchEnabled={webSearchEnabled}
+          onWebSearchChange={setWebSearchEnabled}
+          codebaseEnabled={codebaseEnabled}
+          onCodebaseChange={setCodebaseEnabled}
+          githubConnected={githubConnected}
+          repoLinked={repoLinked}
         />
 
         <div className="flex justify-end gap-3 pt-2">

@@ -103,6 +103,8 @@ export default defineSchema({
     ),
     title: v.string(),
     systemPrompt: v.optional(v.string()),
+    webSearchEnabled: v.optional(v.boolean()),
+    codebaseEnabled: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -123,6 +125,8 @@ export default defineSchema({
     name: v.string(),
     description: v.optional(v.string()),
     systemPrompt: v.string(),
+    webSearchEnabled: v.optional(v.boolean()),
+    codebaseEnabled: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),

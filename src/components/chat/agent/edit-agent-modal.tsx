@@ -2,14 +2,24 @@
 
 import { useState, useEffect } from "react";
 import { Button, Modal, Input, Textarea } from "@/components/ui";
+import { AgentToolToggles } from "./agent-tool-toggles";
 
 interface EditAgentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (title: string, systemPrompt: string) => void;
+  onSubmit: (
+    title: string,
+    systemPrompt: string,
+    webSearchEnabled: boolean,
+    codebaseEnabled: boolean
+  ) => void;
   isLoading?: boolean;
   initialTitle: string;
   initialSystemPrompt: string;
+  initialWebSearchEnabled: boolean;
+  initialCodebaseEnabled: boolean;
+  githubConnected: boolean;
+  repoLinked: boolean;
   externalError?: string | null;
 }
 
@@ -20,10 +30,20 @@ export function EditAgentModal({
   isLoading = false,
   initialTitle,
   initialSystemPrompt,
+  initialWebSearchEnabled,
+  initialCodebaseEnabled,
+  githubConnected,
+  repoLinked,
   externalError,
 }: EditAgentModalProps) {
   const [title, setTitle] = useState(initialTitle);
   const [systemPrompt, setSystemPrompt] = useState(initialSystemPrompt);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(
+    initialWebSearchEnabled
+  );
+  const [codebaseEnabled, setCodebaseEnabled] = useState(
+    initialCodebaseEnabled
+  );
   const [error, setError] = useState<string | null>(null);
 
   // Reset form when modal opens with new values
@@ -31,9 +51,17 @@ export function EditAgentModal({
     if (isOpen) {
       setTitle(initialTitle);
       setSystemPrompt(initialSystemPrompt);
+      setWebSearchEnabled(initialWebSearchEnabled);
+      setCodebaseEnabled(initialCodebaseEnabled);
       setError(null);
     }
-  }, [isOpen, initialTitle, initialSystemPrompt]);
+  }, [
+    isOpen,
+    initialTitle,
+    initialSystemPrompt,
+    initialWebSearchEnabled,
+    initialCodebaseEnabled,
+  ]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +72,12 @@ export function EditAgentModal({
       return;
     }
 
-    onSubmit(title.trim(), systemPrompt.trim());
+    onSubmit(
+      title.trim(),
+      systemPrompt.trim(),
+      webSearchEnabled,
+      codebaseEnabled
+    );
   };
 
   const handleClose = () => {
@@ -82,6 +115,15 @@ export function EditAgentModal({
           onChange={(e) => setSystemPrompt(e.target.value)}
           rows={6}
           helperText="The system prompt defines how the AI should behave in this conversation. Leave empty to use the default advisor prompt."
+        />
+
+        <AgentToolToggles
+          webSearchEnabled={webSearchEnabled}
+          onWebSearchChange={setWebSearchEnabled}
+          codebaseEnabled={codebaseEnabled}
+          onCodebaseChange={setCodebaseEnabled}
+          githubConnected={githubConnected}
+          repoLinked={repoLinked}
         />
 
         <div className="flex justify-end gap-3 pt-2">

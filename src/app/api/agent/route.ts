@@ -8,18 +8,10 @@ import {
   DOCUMENT_EDIT_TOOLS,
   executeDocumentTool,
 } from "@/lib/document-edit-tools";
+import { GITHUB_TOOLS, executeGitHubTool } from "@/lib/github-tools";
+import { decryptToken } from "@/lib/encryption";
 import { SelectionContext } from "@/lib/document-ai-prompts";
 import Anthropic from "@anthropic-ai/sdk";
-
-// Agent types that benefit from web search capability
-const WEB_SEARCH_ENABLED_AGENTS = new Set([
-  "market_validation", // Research competitors, market size, trends
-  "tech_stack", // Latest frameworks, documentation, best practices
-  "go_to_market", // Industry trends, marketing strategies
-  "new_features", // Competitor features, industry standards
-  "feedback_analysis", // Research competitor features, best practices
-  "custom", // General research capability
-]);
 
 // Web search tool definition (Anthropic native)
 const WEB_SEARCH_TOOL: Anthropic.WebSearchTool20250305 = {
@@ -279,12 +271,32 @@ export async function POST(request: NextRequest) {
     // Track the active document content for editing (mutable for tool loop)
     let currentDocumentContent = activeDocumentContent || "";
 
+    // Determine tool availability from agent flags (user-controlled)
+    const webSearchEnabled = agent.webSearchEnabled === true;
+    const codebaseEnabled = agent.codebaseEnabled === true;
+
+    // Decrypt GitHub token if codebase access is enabled
+    let githubToken: string | null = null;
+    if (codebaseEnabled && project.githubRepoName) {
+      if (user.encryptedGitHubToken && user.githubTokenIv) {
+        try {
+          githubToken = await decryptToken(
+            user.encryptedGitHubToken,
+            user.githubTokenIv
+          );
+        } catch {
+          // Token decryption failed — skip codebase tools
+          githubToken = null;
+        }
+      }
+    }
+
+    const codebaseAvailable =
+      codebaseEnabled && !!githubToken && !!project.githubRepoName;
+
     // Build system prompt with document context and tool instructions
     const baseSystemPrompt =
       agent.systemPrompt || buildSystemPrompt(agent.type, documents, feedbackContext);
-
-    // Check if web search is enabled for this agent type (needed for prompt building)
-    const webSearchEnabledForPrompt = WEB_SEARCH_ENABLED_AGENTS.has(agent.type);
 
     // Build tool instructions based on context
     const buildToolInstructions = () => {
@@ -299,7 +311,7 @@ You have access to the following tools for document management:
 2. **update_document**: Update an existing document when the user wants to make changes. Reference the document by its ID.`;
 
       // Add web search instructions if enabled
-      if (webSearchEnabledForPrompt) {
+      if (webSearchEnabled) {
         instructions += `
 
 ### Web Search
@@ -315,6 +327,28 @@ When using web search:
 - Cite your sources when presenting information from search results
 - Synthesize information from multiple sources when relevant
 - Clearly indicate when information comes from web search vs. your training data`;
+      }
+
+      // Add codebase access instructions if enabled
+      if (codebaseAvailable) {
+        instructions += `
+
+### Codebase Access
+
+You have access to the project's GitHub repository (${project.githubRepoName}). Use these tools to explore the codebase when it would help inform your advice:
+
+- **get_repo_tree**: Get the full directory structure of the repository. Use this first to understand the project layout before reading specific files.
+- **list_repo_directory**: List files and folders at a specific path. Use to browse into specific directories.
+- **read_repo_file**: Read the contents of a specific file. Use when you need to understand implementation details, configurations, or code patterns.
+- **search_repo_code**: Search for code patterns, function names, or keywords across the entire repository. Use when looking for specific implementations, usages, or TODOs.
+
+When using codebase tools:
+- Start with get_repo_tree to understand the project structure before diving into files
+- Be targeted — read files relevant to the conversation, not everything
+- Use search_repo_code to find specific patterns rather than reading files one by one
+- Reference specific file paths and line context when making recommendations
+- Cross-reference what you find in the code with the project's Skribe documents
+- When suggesting features, architecture changes, or improvements, ground your advice in the actual codebase — mention what exists today and what would need to change`;
       }
 
       // Add editing tools if a document is actively being edited
@@ -393,14 +427,14 @@ When creating or updating documents:
       ? [...DOCUMENT_TOOLS, ...DOCUMENT_EDIT_TOOLS]
       : DOCUMENT_TOOLS;
 
-    // Check if web search is enabled for this agent type
-    const webSearchEnabled = WEB_SEARCH_ENABLED_AGENTS.has(agent.type);
-
-    // Build tools array with optional web search
-    // Note: web_search uses a different type format than regular tools
-    const tools: Anthropic.Messages.ToolUnion[] = webSearchEnabled
-      ? [...baseTools, WEB_SEARCH_TOOL]
-      : baseTools;
+    // Build tools array with optional web search and codebase tools
+    const tools: Anthropic.Messages.ToolUnion[] = [...baseTools];
+    if (webSearchEnabled) {
+      tools.push(WEB_SEARCH_TOOL);
+    }
+    if (codebaseAvailable) {
+      tools.push(...GITHUB_TOOLS);
+    }
 
     // Fetch image URLs if images are attached
     let imageUrls: string[] = [];
@@ -722,6 +756,38 @@ When creating or updating documents:
                     } else {
                       toolResult = `Error: ${editResult.message}`;
                     }
+                  }
+                } else if (
+                  // Handle GitHub codebase tools
+                  [
+                    "get_repo_tree",
+                    "list_repo_directory",
+                    "read_repo_file",
+                    "search_repo_code",
+                  ].includes(currentToolUse.name)
+                ) {
+                  if (!githubToken || !project.githubRepoName) {
+                    toolResult =
+                      "Error: Codebase access is not available. GitHub may not be connected or no repository is linked.";
+                  } else {
+                    // Send JSONL marker so client knows codebase is being read
+                    const codebaseMarker = JSON.stringify({
+                      type: "CODEBASE_READING",
+                      tool: currentToolUse.name,
+                      input: toolInput,
+                    });
+                    controller.enqueue(
+                      encoder.encode(`\n${codebaseMarker}\n`)
+                    );
+
+                    toolResult = await executeGitHubTool(
+                      currentToolUse.name,
+                      toolInput,
+                      {
+                        token: githubToken,
+                        repoName: project.githubRepoName,
+                      }
+                    );
                   }
                 } else {
                   toolResult = `Unknown tool: ${currentToolUse.name}`;

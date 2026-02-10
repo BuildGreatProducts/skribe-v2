@@ -120,7 +120,12 @@ export default function NewContextPage() {
     setIsCustomAgentModalOpen(true);
   };
 
-  const handleCreateCustomContext = async (title: string, systemPrompt: string) => {
+  const handleCreateCustomContext = async (
+    title: string,
+    systemPrompt: string,
+    webSearchEnabled: boolean,
+    codebaseEnabled: boolean
+  ) => {
     if (isCreating) return;
     if (!storedUser?._id || !projectId) return;
 
@@ -136,6 +141,8 @@ export default function NewContextPage() {
         documentType: "custom",
         agentType: "custom",
         systemPrompt: systemPrompt || SYSTEM_PROMPTS.custom,
+        webSearchEnabled,
+        codebaseEnabled,
       });
 
       setIsCustomAgentModalOpen(false);
@@ -148,10 +155,22 @@ export default function NewContextPage() {
     }
   };
 
-  const handleCreateTemplate = async (name: string, description: string, systemPrompt: string) => {
+  const handleCreateTemplate = async (
+    name: string,
+    description: string,
+    systemPrompt: string,
+    webSearchEnabled: boolean,
+    codebaseEnabled: boolean
+  ) => {
     setAgentError(null);
     try {
-      await createTemplate({ name, description: description || undefined, systemPrompt });
+      await createTemplate({
+        name,
+        description: description || undefined,
+        systemPrompt,
+        webSearchEnabled,
+        codebaseEnabled,
+      });
       setIsCreateTemplateModalOpen(false);
     } catch (error) {
       console.error("Failed to create template:", error);
@@ -159,7 +178,13 @@ export default function NewContextPage() {
     }
   };
 
-  const handleEditTemplate = async (name: string, description: string, systemPrompt: string) => {
+  const handleEditTemplate = async (
+    name: string,
+    description: string,
+    systemPrompt: string,
+    webSearchEnabled: boolean,
+    codebaseEnabled: boolean
+  ) => {
     if (!editingTemplate) return;
     setAgentError(null);
     try {
@@ -168,6 +193,8 @@ export default function NewContextPage() {
         name,
         description: description || undefined,
         systemPrompt,
+        webSearchEnabled,
+        codebaseEnabled,
       });
       setEditingTemplate(null);
     } catch (error) {
@@ -203,6 +230,8 @@ export default function NewContextPage() {
         documentType: "custom",
         agentType: "custom",
         systemPrompt: template.systemPrompt,
+        webSearchEnabled: template.webSearchEnabled ?? false,
+        codebaseEnabled: template.codebaseEnabled ?? false,
       });
 
       router.push(`/p/${projectId}/d/${result.documentId}`);
@@ -483,6 +512,8 @@ export default function NewContextPage() {
         onClose={() => setIsCustomAgentModalOpen(false)}
         onSubmit={handleCreateCustomContext}
         isLoading={isCreating === "custom"}
+        githubConnected={storedUser?.githubConnected ?? false}
+        repoLinked={!!project?.githubRepoName}
       />
 
       {/* Create Template Modal */}
@@ -490,6 +521,8 @@ export default function NewContextPage() {
         isOpen={isCreateTemplateModalOpen}
         onClose={() => setIsCreateTemplateModalOpen(false)}
         onSubmit={handleCreateTemplate}
+        githubConnected={storedUser?.githubConnected ?? false}
+        repoLinked={!!project?.githubRepoName}
       />
 
       {/* Edit Template Modal */}
@@ -500,6 +533,10 @@ export default function NewContextPage() {
         initialName={editingTemplate?.name ?? ""}
         initialDescription={editingTemplate?.description ?? ""}
         initialSystemPrompt={editingTemplate?.systemPrompt ?? ""}
+        initialWebSearchEnabled={editingTemplate?.webSearchEnabled ?? false}
+        initialCodebaseEnabled={editingTemplate?.codebaseEnabled ?? false}
+        githubConnected={storedUser?.githubConnected ?? false}
+        repoLinked={!!project?.githubRepoName}
       />
     </div>
   );

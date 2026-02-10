@@ -12,6 +12,7 @@ import { ChatImageDisplay } from "@/components/chat/ChatImageDisplay";
 import { ImageDropZone, useImagePaste } from "@/components/chat/ImageDropZone";
 import { SelectionContextChip } from "@/components/document/SelectionContextChip";
 import { DocumentCard } from "@/components/chat";
+import { AgentToolToggles } from "@/components/chat/agent";
 import { useStoreUser } from "@/hooks/use-store-user";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
@@ -101,7 +102,7 @@ export default function UnifiedDocumentPage() {
   const router = useRouter();
   const projectId = params.projectId as string;
   const documentId = params.documentId as string;
-  useStoreUser();
+  const { user: storedUser } = useStoreUser();
 
   // Document editor state
   const [isEditing, setIsEditing] = useState(false);
@@ -126,6 +127,8 @@ export default function UnifiedDocumentPage() {
   // System prompt editor state
   const [isSystemPromptOpen, setIsSystemPromptOpen] = useState(false);
   const [editedSystemPrompt, setEditedSystemPrompt] = useState("");
+  const [editedWebSearchEnabled, setEditedWebSearchEnabled] = useState(false);
+  const [editedCodebaseEnabled, setEditedCodebaseEnabled] = useState(false);
   const [isSavingPrompt, setIsSavingPrompt] = useState(false);
 
   // Mutex to prevent concurrent chat creation
@@ -495,6 +498,8 @@ export default function UnifiedDocumentPage() {
     } else {
       setEditedSystemPrompt("");
     }
+    setEditedWebSearchEnabled(chatData?.webSearchEnabled ?? false);
+    setEditedCodebaseEnabled(chatData?.codebaseEnabled ?? false);
     setIsSystemPromptOpen(true);
   };
 
@@ -507,6 +512,8 @@ export default function UnifiedDocumentPage() {
         agentId: chatData._id,
         // Send empty string explicitly when cleared, otherwise keep the edited value
         systemPrompt: editedSystemPrompt === "" ? "" : editedSystemPrompt || undefined,
+        webSearchEnabled: editedWebSearchEnabled,
+        codebaseEnabled: editedCodebaseEnabled,
       });
       setIsSystemPromptOpen(false);
     } catch (error) {
@@ -859,8 +866,8 @@ export default function UnifiedDocumentPage() {
       <Modal
         isOpen={isSystemPromptOpen}
         onClose={() => setIsSystemPromptOpen(false)}
-        title="Edit System Prompt"
-        description="Customize how the AI assistant behaves for this document."
+        title="Edit Agent Settings"
+        description="Customize the AI's behavior, web search, and codebase access for this document."
       >
         <div className="space-y-4">
           <Textarea
@@ -868,6 +875,14 @@ export default function UnifiedDocumentPage() {
             onChange={(e) => setEditedSystemPrompt(e.target.value)}
             placeholder="Enter custom instructions for the AI..."
             className="min-h-[200px] font-mono text-sm"
+          />
+          <AgentToolToggles
+            webSearchEnabled={editedWebSearchEnabled}
+            onWebSearchChange={setEditedWebSearchEnabled}
+            codebaseEnabled={editedCodebaseEnabled}
+            onCodebaseChange={setEditedCodebaseEnabled}
+            githubConnected={storedUser?.githubConnected ?? false}
+            repoLinked={!!project?.githubRepoName}
           />
           <div className="flex justify-end gap-3">
             <Button

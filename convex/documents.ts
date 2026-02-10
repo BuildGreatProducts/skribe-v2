@@ -199,6 +199,8 @@ export const createWithChat = mutation({
     documentType: documentTypes,
     agentType: agentTypes,
     systemPrompt: v.optional(v.string()),
+    webSearchEnabled: v.optional(v.boolean()),
+    codebaseEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
@@ -226,6 +228,8 @@ export const createWithChat = mutation({
       type: args.agentType,
       title: args.title,
       systemPrompt: args.systemPrompt,
+      webSearchEnabled: args.webSearchEnabled,
+      codebaseEnabled: args.codebaseEnabled,
       createdAt: now,
       updatedAt: now,
     });
